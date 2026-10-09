@@ -146,5 +146,9 @@ barato — o GitHub mantém o redirecionamento.
 
 ## Licença
 
-A definir antes da primeira publicação. O módulo de kernel derivado do `facer`
-é GPL-2.0 por herança; o resto do projeto pode ser outra coisa.
+**MIT** para o aplicativo, o daemon, o tray e o CLI — ver [`LICENSE`](LICENSE).
+
+O diretório [`kernel/`](kernel/) é **GPL-2.0-only**, por herança: o patch
+deriva do `facer`, que deriva do `acer-wmi` do kernel Linux. Ver
+[`kernel/LICENSE.md`](kernel/LICENSE.md). A fronteira é exatamente essa pasta
+— nada fora dela é obra derivada de código GPL.

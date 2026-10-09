@@ -36,7 +36,34 @@ registra no DKMS e troca o módulo ativo. O `facer-1.0` continua no disco.
 sudo ./reverter.sh
 ```
 
+## Licença
+
+GPL-2.0-only, por herança do `facer`/`acer-wmi`. Ver [`LICENSE.md`](LICENSE.md).
+
 ## Upstream
 
-A intenção é mandar isso como PR para o projeto original — aí o fork deixa de
-ser necessário. Ver fase 5 do roadmap.
+O patch foi preparado para o projeto original em **dois PRs separados**, porque
+são mudanças de risco bem diferente:
+
+1. **`turbo-sysfs`** — o atributo `/sys/devices/platform/acer-wmi/turbo`.
+   Independente de modelo. Supera o [PR #173][pr173] do upstream, que é
+   somente leitura, cria um kobject solto em `/sys/devices/platform/fan` e
+   reescreve o `module_init` num wrapper que vaza se o segundo init falhar.
+2. **`ph315-54-fan-read`** — `.predator_v4 = 1` na quirk do PH315-54.
+   Específico do modelo, e arrasta `ACER_CAP_PLATFORM_PROFILE` junto com a
+   leitura de ventoinha.
+
+Os dois foram compilados e carregados isoladamente em cima do `main` do
+upstream, para provar que não dependem um do outro: com só o primeiro, o
+atributo `turbo` aparece e o `hwmon acer` não.
+
+Duas correções em relação ao patch local ao preparar o upstream:
+
+- O `#include <linux/kstrtox.h>` passou a ser guardado com `RTLNX_VER_MIN(5,
+  19, 0)` (antes de 5.19 o `kstrtobool()` vinha do `linux/kernel.h`) e foi
+  movido para **depois** do `#include <linux/version.h>`. Um guard de versão no
+  primeiro bloco de includes avaliaria falso em todo kernel, porque ali o
+  `LINUX_VERSION_CODE` ainda não existe.
+- Comentários reescritos em inglês e sem referência a este projeto.
+
+[pr173]: https://github.com/JafarAkhondali/acer-predator-turbo-and-rgb-keyboard-linux-module/pull/173
