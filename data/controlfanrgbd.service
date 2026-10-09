@@ -6,9 +6,9 @@ Requires=dbus.service
 
 [Service]
 Type=dbus
-BusName=io.github.leandrodukievicz.ControlFanRGB1
+BusName=@BUS_NAME@
 ExecStartPre=/sbin/modprobe facer
-ExecStart=__EXEC__
+ExecStart=@LIBEXECDIR@/controlfanrgbd
 Restart=on-failure
 RestartSec=2
 NoNewPrivileges=yes

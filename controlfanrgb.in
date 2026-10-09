@@ -1,0 +1,9 @@
+#!@PYTHON@
+# Gerado pelo Meson a partir de controlfanrgb.in — não editar.
+import sys
+
+sys.path.insert(1, '@PKGDATADIR@')
+
+from controlfanrgb.@MODULE@ import main
+
+sys.exit(main())

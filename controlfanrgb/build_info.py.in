@@ -1,0 +1,4 @@
+"""Valores definidos no momento da instalação. Gerado pelo Meson."""
+
+VERSION = "@VERSION@"
+GUI_COMMAND = "@GUI_COMMAND@"

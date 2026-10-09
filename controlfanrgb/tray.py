@@ -17,7 +17,7 @@ import gi
 
 from gi.repository import Gio, GLib  # noqa: E402
 
-from . import effects, themes
+from . import build_info, effects, themes
 from .client import get_backend
 
 SNI_IFACE = "org.kde.StatusNotifierItem"
@@ -375,8 +375,19 @@ class Tray:
 
 
 def _spawn_gui():
-    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    GLib.spawn_async(["/usr/bin/python3", os.path.join(here, "run.py")],
+    """Abre a janela.
+
+    Instalado, `build_info.GUI_COMMAND` traz o caminho absoluto gravado pelo
+    Meson. Rodando do repositório ele é None, e aí a janela é o `run.py` ao
+    lado do pacote — é o que mantém o `python3 run.py` funcionando sem build.
+    """
+    if build_info.GUI_COMMAND:
+        argv = [build_info.GUI_COMMAND]
+    else:
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        argv = [sys.executable, os.path.join(here, "run.py")]
+
+    GLib.spawn_async(argv,
                      flags=GLib.SpawnFlags.SEARCH_PATH
                      | GLib.SpawnFlags.STDOUT_TO_DEV_NULL
                      | GLib.SpawnFlags.STDERR_TO_DEV_NULL)

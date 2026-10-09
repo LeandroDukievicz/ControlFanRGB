@@ -8,7 +8,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import themes
+from . import build_info, themes
 from .client import get_backend
 
 APP_ID = "io.github.leandrodukievicz.ControlFanRGB"
@@ -125,6 +125,8 @@ def main():
     p = argparse.ArgumentParser(
         prog="controlfanrgb",
         description="RGB e refrigeração para Acer Predator no Linux")
+    p.add_argument("--version", action="version",
+                   version=f"controlfanrgb {build_info.VERSION}")
     p.add_argument("--apply", action="store_true",
                    help="reaplica o perfil salvo e sai (sem abrir janela)")
     p.add_argument("--status", action="store_true",
