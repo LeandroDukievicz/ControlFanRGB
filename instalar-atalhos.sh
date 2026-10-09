@@ -5,13 +5,20 @@ set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 B=org.gnome.settings-daemon.plugins.media-keys
+
+# Prefere o executável instalado; sem ele, cai no run.py do repositório.
+if command -v controlfanrgb >/dev/null 2>&1; then
+    CMD=$(command -v controlfanrgb)
+else
+    CMD="/usr/bin/python3 $HERE/run.py"
+fi
 PREFIX=/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings
 
 add() {  # add <slug> <nome> <tecla> <argumentos do run.py>
     local path="$PREFIX/$1/"
     gsettings set "$B.custom-keybinding:$path" name "$2"
     gsettings set "$B.custom-keybinding:$path" binding "$3"
-    gsettings set "$B.custom-keybinding:$path" command "/usr/bin/python3 $HERE/run.py $4"
+    gsettings set "$B.custom-keybinding:$path" command "$CMD $4"
     echo "  $3 → $2"
 }
 

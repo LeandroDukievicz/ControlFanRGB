@@ -32,7 +32,8 @@ original não expõe o turbo nem liga a leitura de ventoinha neste modelo.
 
 Ainda não:
 
-- Empacotamento (deb/PPA, snap)
+- Pacote `.deb` e PPA (o build Meson já está pronto; falta o `debian/`)
+- Snap classic e Flatpak (o Flathub vai exigir ícone próprio e capturas de tela)
 - Perfil automático por aplicativo
 
 Sobre o OSD: o mockup previa um overlay flutuante, mas o Mutter **não
@@ -46,13 +47,47 @@ que é um projeto à parte.
 ```bash
 sudo kernel/instalar.sh          # patch do módulo: turbo + leitura de ventoinha
 sudo modprobe -r facer && sudo modprobe facer
-sudo ./instalar-daemon.sh        # controlfanrgbd no systemd + política D-Bus
+./instalar.sh                    # build com Meson, instala em /usr e ativa os serviços
 ./instalar-atalhos.sh            # Super+T e Super+K (sem sudo)
-./instalar-tray.sh               # ícone de bandeja (sem sudo)
 ```
 
-Cada um tem o par `desinstalar-*`/`reverter.sh`. O `instalar-daemon.sh`
-desativa o `acer-rgb.service` antigo, que fazia o mesmo trabalho de boot/resume.
+O `instalar.sh` é um atalho para o fluxo normal do Meson, que também funciona
+na mão:
+
+```bash
+meson setup build --prefix=/usr
+sudo meson install -C build
+sudo systemctl enable --now controlfanrgbd.service
+systemctl --user enable --now controlfanrgb-tray.service
+```
+
+Desinstala com `./desinstalar.sh` (que chama `ninja -C build uninstall`), e o
+patch do módulo reverte com `sudo kernel/reverter.sh`. O `instalar.sh` desativa
+o `acer-rgb.service` antigo, que fazia o mesmo trabalho de boot/resume.
+
+### Onde as coisas ficam
+
+| Caminho | O quê |
+|---|---|
+| `/usr/bin/controlfanrgb` | janela e CLI |
+| `/usr/libexec/controlfanrgbd` | daemon de sistema |
+| `/usr/libexec/controlfanrgb-tray` | ícone de bandeja |
+| `/usr/share/controlfanrgb/controlfanrgb/` | o pacote Python |
+| `/usr/lib/systemd/{system,user}/` | as duas unidades |
+| `/usr/share/dbus-1/system.d/` e `system-services/` | política e ativação D-Bus |
+| `/usr/lib/udev/rules.d/99-controlfanrgb.rules` | turbo gravável sem root |
+| `/usr/share/{applications,metainfo}/` | `.desktop` e AppStream |
+| `/var/lib/controlfanrgb/state.json` | perfil aplicado no boot |
+
+O pacote Python vai para `/usr/share` em vez de `dist-packages` porque é
+privado do aplicativo: assim ele não quebra quando a distribuição troca a
+versão do Python, e os três executáveis são scripts gerados que só inserem
+esse diretório no `sys.path`.
+
+**Não** existe mais instalação "de desenvolvimento" com unidades apontando
+para o diretório do projeto. Uma unidade em `/etc` sombreia a de `/usr/lib`
+sem avisar, então ter os dois caminhos era uma armadilha. Para desenvolver sem
+instalar, use `python3 run.py` — ele continua funcionando direto do repositório.
 
 ## Rodar
 
@@ -102,6 +137,9 @@ personalizados, com o comando acima.
 | `controlfanrgb/tray.py` | ícone de bandeja (StatusNotifierItem + dbusmenu) |
 | `controlfanrgb/perkey.py` | resolve o mapa tecla-a-tecla para as 4 zonas |
 | `kernel/` | patch do módulo `facer` + instalar/reverter |
+| `meson.build` | build e instalação em `/usr` |
+| `controlfanrgb.in` | molde dos três executáveis gerados |
+| `controlfanrgb/build_info.py` | versão e caminhos; o Meson gera a versão instalada |
 
 ### Arquitetura
 
