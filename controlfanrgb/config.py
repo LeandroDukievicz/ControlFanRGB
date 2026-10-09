@@ -1,9 +1,9 @@
-"""Perfil salvo em ~/.config/pulsedeck/config.json."""
+"""Perfil salvo em ~/.config/controlfanrgb/config.json."""
 import json
 import os
 
 DIR = os.path.join(
-    os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "pulsedeck")
+    os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "controlfanrgb")
 PATH = os.path.join(DIR, "config.json")
 
 DEFAULT = {

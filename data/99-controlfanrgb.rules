@@ -1,4 +1,4 @@
-# PulseDeck — deixa o turbo gravável sem root.
+# ControlFanRGB — deixa o turbo gravável sem root.
 #
 # Mesma postura que o próprio módulo facer já adota para /dev/acer-gkbbl-*
 # (0666). No pacote final isso vira polkit + daemon; por enquanto é o caminho

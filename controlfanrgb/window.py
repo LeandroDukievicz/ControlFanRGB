@@ -29,7 +29,7 @@ PAGES = [
 
 class Window(Adw.ApplicationWindow):
     def __init__(self, app):
-        super().__init__(application=app, title="PulseDeck")
+        super().__init__(application=app, title="ControlFanRGB")
         self.set_default_size(980, 720)
 
         self.cfg = config.load()
@@ -73,9 +73,9 @@ class Window(Adw.ApplicationWindow):
         sub = ("daemon conectado" if self.backend.kind == "daemon"
                else "modo direto (sem daemon)")
         tv.add_top_bar(Adw.HeaderBar(title_widget=Adw.WindowTitle(
-            title="PulseDeck", subtitle=f"4 zonas · {sub}")))
+            title="ControlFanRGB", subtitle=f"4 zonas · {sub}")))
         tv.set_content(Gtk.ScrolledWindow(child=self.sidebar_list, vexpand=True))
-        return Adw.NavigationPage(title="PulseDeck", child=tv)
+        return Adw.NavigationPage(title="ControlFanRGB", child=tv)
 
     def _on_page_selected(self, _list, row):
         if row is None:
@@ -401,7 +401,7 @@ class Window(Adw.ApplicationWindow):
     def _page_about(self):
         status = Adw.StatusPage(
             icon_name="keyboard-brightness-symbolic",
-            title="PulseDeck",
+            title="ControlFanRGB",
             description=(
                 "Controle de RGB e refrigeração para notebooks Acer Predator "
                 "no Linux.\n\n"

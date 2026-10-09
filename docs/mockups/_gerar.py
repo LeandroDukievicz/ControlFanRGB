@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gera os mockups de layout do PulseDeck (HTML -> PNG via chrome headless).
+"""Gera os mockups de layout do ControlFanRGB (HTML -> PNG via chrome headless).
 
 Uso:  python3 _gerar.py          # gera HTML + PNG de todos os mockups
       python3 _gerar.py --html   # so o HTML (pra abrir no navegador e mexer)
@@ -410,7 +410,7 @@ body{background:#f6f5f4;color:#2e3436;font-family:'Inter',system-ui,sans-serif;
 BODY_B = f"""
 <div class="hb">
   <div class="ibtn">☰</div>
-  <div class="ttl">PulseDeck<i>Predator PH315-54 · 4 zonas · daemon conectado</i></div>
+  <div class="ttl">ControlFanRGB<i>Predator PH315-54 · 4 zonas · daemon conectado</i></div>
   <div class="ibtn">⌕</div><div class="ibtn sug">Aplicar</div>
 </div>
 <div class="split">
@@ -579,10 +579,10 @@ BODY_C = f"""
   <div class="mi"><span class="sq" style="--c:#ff6a00"></span> Tema: Inferno</div>
   <div class="hr"></div>
   <div class="mi">◉ Apagar teclado <span class="k">Super+K</span></div>
-  <div class="mi">Abrir PulseDeck…</div>
+  <div class="mi">Abrir ControlFanRGB…</div>
 </div>
 <div class="win">
-  <div class="wh"><div class="lg">P</div><b class="disp">PULSEDECK</b>
+  <div class="wh"><div class="lg">P</div><b class="disp">CONTROLFANRGB</b>
     <div class="x"><i></i><i></i><i></i></div></div>
   <div class="wc">
     <div class="wl">Pré-visualização</div>
@@ -722,7 +722,7 @@ body{background:#0a0a0f;color:#dfe3ec;display:grid;
 
 BODY_D = f"""
 <div class="hd">
-  <div class="lg">P</div><b class="disp">PULSEDECK STUDIO</b>
+  <div class="lg">P</div><b class="disp">CONTROLFANRGB STUDIO</b>
   <div class="tabs"><span>Zonas</span><span class="on">Tecla a tecla</span>
     <span>Efeitos</span><span>Resfriamento</span></div>
   <div class="r"><span class="tag">PH315-54</span><span class="tag ok">facer 1.0 · 4 zonas</span>
@@ -835,10 +835,10 @@ BODY_D = f"""
 
 # ------------------------------------------------------------------ build ----
 MOCKUPS = [
-    ("A-cyber-hud",        "PulseDeck — Cyber HUD",        CSS_A, BODY_A),
-    ("B-gnome-adwaita",    "PulseDeck — GNOME nativo",     CSS_B, BODY_B),
-    ("C-compacto-tray-osd","PulseDeck — Compacto + OSD",   CSS_C, BODY_C),
-    ("D-studio-pro",       "PulseDeck — Studio",           CSS_D, BODY_D),
+    ("A-cyber-hud",        "ControlFanRGB — Cyber HUD",        CSS_A, BODY_A),
+    ("B-gnome-adwaita",    "ControlFanRGB — GNOME nativo",     CSS_B, BODY_B),
+    ("C-compacto-tray-osd","ControlFanRGB — Compacto + OSD",   CSS_C, BODY_C),
+    ("D-studio-pro",       "ControlFanRGB — Studio",           CSS_D, BODY_D),
 ]
 
 def main():

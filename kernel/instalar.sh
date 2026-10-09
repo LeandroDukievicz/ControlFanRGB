@@ -20,7 +20,7 @@ dkms build -m facer -v 1.1 -k "$(uname -r)"
 dkms uninstall -m facer -v 1.0 -k "$(uname -r)" 2>/dev/null || true
 dkms install -m facer -v 1.1 -k "$(uname -r)"
 
-install -m 0644 "$HERE/../data/99-pulsedeck.rules" /etc/udev/rules.d/99-pulsedeck.rules
+install -m 0644 "$HERE/../data/99-controlfanrgb.rules" /etc/udev/rules.d/99-controlfanrgb.rules
 udevadm control --reload-rules
 
 echo

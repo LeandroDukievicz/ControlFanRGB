@@ -7,10 +7,10 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 UNITS="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 mkdir -p "$UNITS"
 
-sed "s|__EXEC__|/usr/bin/python3 $HERE/pulsedeck-tray.py|" \
-    "$HERE/data/pulsedeck-tray.service" > "$UNITS/pulsedeck-tray.service"
+sed "s|__EXEC__|/usr/bin/python3 $HERE/controlfanrgb-tray.py|" \
+    "$HERE/data/controlfanrgb-tray.service" > "$UNITS/controlfanrgb-tray.service"
 
 systemctl --user daemon-reload
-systemctl --user enable --now pulsedeck-tray.service
+systemctl --user enable --now controlfanrgb-tray.service
 sleep 2
-systemctl --user --no-pager --lines=5 status pulsedeck-tray.service || true
+systemctl --user --no-pager --lines=5 status controlfanrgb-tray.service || true

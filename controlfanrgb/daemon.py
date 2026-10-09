@@ -1,4 +1,4 @@
-"""pulsedeckd — serviço de sistema dono do hardware.
+"""controlfanrgbd — serviço de sistema dono do hardware.
 
 Por que existe:
 
@@ -11,7 +11,7 @@ Por que existe:
 * **É o que torna Flatpak/Snap viáveis.** A GUI vira só um cliente de D-Bus;
   nada confinado precisa tocar em `/dev`.
 
-Fala no barramento de sistema em `io.github.leandrodukievicz.PulseDeck1`.
+Fala no barramento de sistema em `io.github.leandrodukievicz.ControlFanRGB1`.
 """
 import json
 import os
@@ -25,9 +25,9 @@ from gi.repository import Gio, GLib  # noqa: E402
 from . import effects, themes
 from .hardware import Keyboard, KeyboardUnavailable, Sensors, Turbo
 
-BUS_NAME = "io.github.leandrodukievicz.PulseDeck1"
-OBJ_PATH = "/io/github/leandrodukievicz/PulseDeck1"
-STATE_DIR = "/var/lib/pulsedeck"
+BUS_NAME = "io.github.leandrodukievicz.ControlFanRGB1"
+OBJ_PATH = "/io/github/leandrodukievicz/ControlFanRGB1"
+STATE_DIR = "/var/lib/controlfanrgb"
 STATE_PATH = os.path.join(STATE_DIR, "state.json")
 POLL_SECONDS = 2
 MAX_APPLY_RETRIES = 30      # ~15 s esperando o módulo criar os /dev
@@ -45,7 +45,7 @@ DEFAULT_STATE = {
 
 INTROSPECTION = """
 <node>
-  <interface name="io.github.leandrodukievicz.PulseDeck1">
+  <interface name="io.github.leandrodukievicz.ControlFanRGB1">
     <method name="SetZones">
       <arg type="a(uuu)" name="colors" direction="in"/>
       <arg type="u" name="brightness" direction="in"/>
@@ -127,7 +127,7 @@ class Daemon:
         _log(f"no barramento como {BUS_NAME}")
 
     def _on_name_lost(self, _conn, _name):
-        _log("não consegui o nome no barramento — já existe outro pulsedeckd?")
+        _log("não consegui o nome no barramento — já existe outro controlfanrgbd?")
         self._quit()
 
     def _on_sleep(self, _c, _s, _p, _i, _sig, params, _u):
@@ -333,7 +333,7 @@ def _save_state(st):
 
 
 def _log(msg):
-    print(f"pulsedeckd: {msg}", file=sys.stderr, flush=True)
+    print(f"controlfanrgbd: {msg}", file=sys.stderr, flush=True)
 
 
 def main():

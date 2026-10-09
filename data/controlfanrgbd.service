@@ -1,0 +1,20 @@
+[Unit]
+Description=ControlFanRGB — controle de RGB e refrigeração (Acer Predator)
+Documentation=https://github.com/LeandroDukievicz/ControlFanRGB
+After=dbus.service systemd-modules-load.service
+Requires=dbus.service
+
+[Service]
+Type=dbus
+BusName=io.github.leandrodukievicz.ControlFanRGB1
+ExecStartPre=/sbin/modprobe facer
+ExecStart=__EXEC__
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/controlfanrgb /sys/devices/platform/acer-wmi
+StateDirectory=controlfanrgb
+
+[Install]
+WantedBy=multi-user.target

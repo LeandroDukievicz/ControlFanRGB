@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=PulseDeck
+Name=ControlFanRGB
 GenericName=Controle de RGB e refrigeração
 Comment=Controla o teclado RGB e a refrigeração de notebooks Acer Predator
-Exec=pulsedeck
+Exec=controlfanrgb
 Icon=keyboard-brightness
 Terminal=false
 Categories=Settings;HardwareSettings;GTK;

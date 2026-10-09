@@ -1,6 +1,6 @@
 # Patch do módulo `facer`
 
-O PulseDeck precisa de duas coisas que o módulo
+O ControlFanRGB precisa de duas coisas que o módulo
 [`facer`](https://github.com/JafarAkhondali/acer-predator-turbo-and-rgb-keyboard-linux-module)
 não entrega:
 

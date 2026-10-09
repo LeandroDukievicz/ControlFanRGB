@@ -6,7 +6,7 @@ jeito certo num app GTK4 é falar o protocolo direto — `org.kde.StatusNotifier
 mais o menu em `com.canonical.dbusmenu`, ambos no barramento de sessão.
 
 Por que é um processo separado da janela: um tray que morre quando você fecha
-a janela não é um tray. Este fala com o `pulsedeckd` pelo barramento de
+a janela não é um tray. Este fala com o `controlfanrgbd` pelo barramento de
 sistema e sobrevive sozinho.
 """
 import os
@@ -156,7 +156,7 @@ class Tray:
 
         add(node(type="separator"))
         add(node("Apagar teclado", action="off"))
-        add(node("Abrir PulseDeck…", action="open"))
+        add(node("Abrir ControlFanRGB…", action="open"))
         add(node(type="separator"))
         add(node("Sair do tray", action="quit"))
         return root
@@ -235,8 +235,8 @@ class Tray:
     def _sni_get(self, _c, _s, _p, _i, prop):
         values = {
             "Category": GLib.Variant("s", "Hardware"),
-            "Id": GLib.Variant("s", "pulsedeck"),
-            "Title": GLib.Variant("s", "PulseDeck"),
+            "Id": GLib.Variant("s", "controlfanrgb"),
+            "Title": GLib.Variant("s", "ControlFanRGB"),
             "Status": GLib.Variant("s", "Active"),
             "WindowId": GLib.Variant("i", 0),
             "IconName": GLib.Variant("s", ICON),
@@ -246,7 +246,7 @@ class Tray:
             "ItemIsMenu": GLib.Variant("b", True),
             "Menu": GLib.Variant("o", MENU_PATH),
             "ToolTip": GLib.Variant("(sa(iiay)ss)",
-                                    (ICON, [], "PulseDeck", self._tooltip())),
+                                    (ICON, [], "ControlFanRGB", self._tooltip())),
         }
         return values.get(prop)
 
@@ -383,7 +383,7 @@ def _spawn_gui():
 
 
 def _log(msg):
-    print(f"pulsedeck-tray: {msg}", file=sys.stderr, flush=True)
+    print(f"controlfanrgb-tray: {msg}", file=sys.stderr, flush=True)
 
 
 def main():

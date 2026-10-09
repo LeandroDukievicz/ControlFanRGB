@@ -15,10 +15,10 @@ add() {  # add <slug> <nome> <tecla> <argumentos do run.py>
     echo "  $3 → $2"
 }
 
-add pulsedeck-turbo "PulseDeck: turbo"  "<Super>t" "--turbo toggle"
-add pulsedeck-off   "PulseDeck: apagar" "<Super>k" "--off"
+add controlfanrgb-turbo "ControlFanRGB: turbo"  "<Super>t" "--turbo toggle"
+add controlfanrgb-off   "ControlFanRGB: apagar" "<Super>k" "--off"
 
 gsettings set $B custom-keybindings \
-    "['$PREFIX/pulsedeck-turbo/', '$PREFIX/pulsedeck-off/']"
+    "['$PREFIX/controlfanrgb-turbo/', '$PREFIX/controlfanrgb-off/']"
 
 echo "atalhos registrados. remova com ./desinstalar-atalhos.sh"

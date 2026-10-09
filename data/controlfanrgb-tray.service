@@ -1,5 +1,5 @@
 [Unit]
-Description=PulseDeck — ícone de bandeja
+Description=ControlFanRGB — ícone de bandeja
 PartOf=graphical-session.target
 After=graphical-session.target
 

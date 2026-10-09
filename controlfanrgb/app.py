@@ -11,7 +11,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 from . import themes
 from .client import get_backend
 
-APP_ID = "io.github.leandrodukievicz.PulseDeck"
+APP_ID = "io.github.leandrodukievicz.ControlFanRGB"
 
 CSS = """
 .pd-sw:first-child { border-radius: 8px 0 0 8px; }
@@ -20,7 +20,7 @@ CSS = """
 """
 
 
-class PulseDeck(Adw.Application):
+class ControlFanRGB(Adw.Application):
     def __init__(self):
         super().__init__(application_id=APP_ID,
                          flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
@@ -54,7 +54,7 @@ def _notify(title, body, icon="keyboard-brightness-symbolic"):
             "org.freedesktop.Notifications", "/org/freedesktop/Notifications",
             "org.freedesktop.Notifications", "Notify",
             GLib.Variant("(susssasa{sv}i)",
-                         ("PulseDeck", NOTIFY_ID, icon, title, body, [],
+                         ("ControlFanRGB", NOTIFY_ID, icon, title, body, [],
                           {"transient": GLib.Variant("b", True),
                            "urgency": GLib.Variant("y", 1)}, 2500)),
             None, Gio.DBusCallFlags.NONE, 2000, None)
@@ -123,7 +123,7 @@ def st_zones(backend):
 
 def main():
     p = argparse.ArgumentParser(
-        prog="pulsedeck",
+        prog="controlfanrgb",
         description="RGB e refrigeração para Acer Predator no Linux")
     p.add_argument("--apply", action="store_true",
                    help="reaplica o perfil salvo e sai (sem abrir janela)")
@@ -139,7 +139,7 @@ def main():
     if args.apply or args.off or args.theme or args.turbo or args.status:
         _cli(args)
         return 0
-    return PulseDeck().run([])
+    return ControlFanRGB().run([])
 
 
 if __name__ == "__main__":

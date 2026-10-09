@@ -13,7 +13,7 @@
  	.cpu_fans = 1,
  	.gpu_fans = 1,
 +	/*
-+	 * PulseDeck: o PH315-54 responde aos comandos de leitura de ventoinha do
++	 * ControlFanRGB: o PH315-54 responde aos comandos de leitura de ventoinha do
 +	 * Predator Sense v4 (testado: CPU 3061 / GPU 3488 rpm), mas a quirk nao
 +	 * ligava a capability. Com predator_v4 aqui, FAN_SPEED_READ e
 +	 * PLATFORM_PROFILE entram junto com o turbo, em vez de substitui-lo.
@@ -27,7 +27,7 @@
  }
  
 +/*
-+ * PulseDeck: interface de userspace para o turbo.
++ * ControlFanRGB: interface de userspace para o turbo.
 + *
 + * O acer_toggle_turbo() original so era alcancavel pelo handler da tecla
 + * fisica (WMID_GAMING_TURBO_KEY_EVENT / key_num 0x4). Sem isso aqui nao ha

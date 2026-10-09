@@ -1,4 +1,4 @@
-# PulseDeck — pesquisa de cenário e plano
+# ControlFanRGB — pesquisa de cenário e plano
 
 **Máquina alvo:** Acer Predator PH315-54 (Helios 300, 2021) · BIOS V1.15 · Ubuntu 26.04 · kernel 7.0.0-38
 **Base atual:** módulo DKMS `facer/1.0` + CLI `/usr/local/bin/acer-rgb` (funcionando)
@@ -68,7 +68,7 @@ pro projeto original. Bônus do A: com a quirk corrigida você ganha leitura de 
 4. AUR/COPR saem de graça depois.
 
 > ⚠️ **Nome:** "Predator" e "PredatorSense" são marcas da Acer. Não dá pra publicar com esse nome.
-> `PulseDeck` é um placeholder meu — outras ideias: `Lumen`, `Chromafan`, `Turbina`, `NeonDeck`.
+> `ControlFanRGB` é um placeholder meu — outras ideias: `Lumen`, `Chromafan`, `Turbina`, `NeonDeck`.
 
 ---
 
@@ -82,7 +82,7 @@ pro projeto original. Bônus do A: com a quirk corrigida você ganha leitura de 
 └───────────────────────────┬─────────────────────────────┘
                             │ D-Bus (sessão → sistema)
 ┌───────────────────────────▼─────────────────────────────┐
-│  pulsedeckd  (daemon de sistema, Python ou Rust)        │
+│  controlfanrgbd  (daemon de sistema, Python ou Rust)        │
 │  • dono exclusivo de /dev/acer-gkbbl-*                   │
 │  • motor de animação em software (60 fps, barato)        │
 │  • lê hwmon acer → RPM, coretemp → °C                    │
@@ -138,7 +138,7 @@ quer `pkexec` piscando toda hora; (2) a animação por software precisa rodar me
 | Fase | Entrega | Por quê primeiro |
 |---|---|---|
 | **0** ✅ | Fork do `facer` → `turbo` em sysfs + quirk PH315-54 com `predator_v4` | destrava turbo e RPM; sem isso nada do resto existe |
-| **1** ✅ | `pulsedeckd` + CLI nova (substitui o `acer-rgb`) | separa privilégio de UI; já dá pra usar no dia a dia |
+| **1** ✅ | `controlfanrgbd` + CLI nova (substitui o `acer-rgb`) | separa privilégio de UI; já dá pra usar no dia a dia |
 | **2** ✅ | GUI com zonas, temas, brilho, turbo e RPM | é o MVP publicável |
 | **3** ✅ | Efeitos por software + pintar tecla a tecla + tray | é o diferencial |
 | **4** | Empacotar: deb/PPA → snap classic → flatpak | distribuição |

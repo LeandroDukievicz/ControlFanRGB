@@ -5,7 +5,7 @@ set -euo pipefail
 
 dkms uninstall -m facer -v 1.1 -k "$(uname -r)" 2>/dev/null || true
 dkms remove -m facer -v 1.1 --all 2>/dev/null || true
-rm -f /etc/udev/rules.d/99-pulsedeck.rules
+rm -f /etc/udev/rules.d/99-controlfanrgb.rules
 udevadm control --reload-rules
 
 dkms add -m facer -v 1.0 2>/dev/null || true

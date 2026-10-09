@@ -3,9 +3,9 @@
 set -euo pipefail
 [[ $EUID -eq 0 ]] || { echo "rode com sudo"; exit 1; }
 
-systemctl disable --now pulsedeckd.service 2>/dev/null || true
-rm -f /etc/systemd/system/pulsedeckd.service
-rm -f /etc/dbus-1/system.d/io.github.leandrodukievicz.PulseDeck1.conf
+systemctl disable --now controlfanrgbd.service 2>/dev/null || true
+rm -f /etc/systemd/system/controlfanrgbd.service
+rm -f /etc/dbus-1/system.d/io.github.leandrodukievicz.ControlFanRGB1.conf
 systemctl daemon-reload
 
 for unit in acer-rgb.service acer-rgb-resume.service; do

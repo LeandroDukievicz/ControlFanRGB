@@ -2,7 +2,7 @@
 
 Dois, com a mesma API:
 
-* `DaemonBackend` — fala D-Bus com o `pulsedeckd`. É o caminho normal.
+* `DaemonBackend` — fala D-Bus com o `controlfanrgbd`. É o caminho normal.
 * `LocalBackend` — toca o hardware direto. Serve para desenvolvimento e para
   quem só clonou o repositório e rodou `python3 run.py` sem instalar nada.
 

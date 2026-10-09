@@ -1,7 +1,7 @@
 """Camada de hardware: tudo que toca nos /dev e no hwmon mora aqui.
 
 Mantida sem nenhuma dependência de GTK de propósito — é esta classe que vai virar
-o `pulsedeckd` depois, sem reescrita.
+o `controlfanrgbd` depois, sem reescrita.
 
 Protocolo do Acer Predator (4 zonas), descoberto por engenharia reversa do módulo
 `facer`. Não está documentado em lugar nenhum, então fica registrado aqui:
@@ -186,7 +186,7 @@ class Turbo:
     alcança o turbo pelo handler da tecla física do chassi — não existe
     interface de userspace nenhuma nele.
 
-    A escrita sem root depende da regra udev `99-pulsedeck.rules`.
+    A escrita sem root depende da regra udev `99-controlfanrgb.rules`.
     """
 
     @staticmethod
@@ -214,7 +214,7 @@ class Turbo:
         except PermissionError as e:
             raise KeyboardUnavailable(
                 "sem permissão para escrever no turbo — falta a regra udev "
-                "99-pulsedeck.rules") from e
+                "99-controlfanrgb.rules") from e
         except OSError as e:
             raise KeyboardUnavailable(
                 "turbo indisponível — o módulo facer precisa ser o 1.1+") from e

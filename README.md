@@ -1,4 +1,4 @@
-# PulseDeck
+# ControlFanRGB
 
 Controle de teclado RGB e refrigeração para notebooks **Acer Predator** no Linux.
 GTK4 + libadwaita.
@@ -46,7 +46,7 @@ que é um projeto à parte.
 ```bash
 sudo kernel/instalar.sh          # patch do módulo: turbo + leitura de ventoinha
 sudo modprobe -r facer && sudo modprobe facer
-sudo ./instalar-daemon.sh        # pulsedeckd no systemd + política D-Bus
+sudo ./instalar-daemon.sh        # controlfanrgbd no systemd + política D-Bus
 ./instalar-atalhos.sh            # Super+T e Super+K (sem sudo)
 ./instalar-tray.sh               # ícone de bandeja (sem sudo)
 ```
@@ -92,22 +92,22 @@ personalizados, com o comando acima.
 
 | Arquivo | O quê |
 |---|---|
-| `pulsedeck/hardware.py` | única camada que toca nos `/dev` — vira o `pulsedeckd` depois |
-| `pulsedeck/effects.py` | motor de efeitos por software (30 fps, em thread) |
-| `pulsedeck/keyboardview.py` | preview do teclado em cairo |
-| `pulsedeck/window.py` | janela (sidebar + páginas) |
-| `pulsedeck/app.py` | Adw.Application e CLI |
-| `pulsedeck/daemon.py` | `pulsedeckd` — serviço de sistema, dono do hardware |
-| `pulsedeck/client.py` | backend D-Bus + fallback direto |
-| `pulsedeck/tray.py` | ícone de bandeja (StatusNotifierItem + dbusmenu) |
-| `pulsedeck/perkey.py` | resolve o mapa tecla-a-tecla para as 4 zonas |
+| `controlfanrgb/hardware.py` | única camada que toca nos `/dev` — vira o `controlfanrgbd` depois |
+| `controlfanrgb/effects.py` | motor de efeitos por software (30 fps, em thread) |
+| `controlfanrgb/keyboardview.py` | preview do teclado em cairo |
+| `controlfanrgb/window.py` | janela (sidebar + páginas) |
+| `controlfanrgb/app.py` | Adw.Application e CLI |
+| `controlfanrgb/daemon.py` | `controlfanrgbd` — serviço de sistema, dono do hardware |
+| `controlfanrgb/client.py` | backend D-Bus + fallback direto |
+| `controlfanrgb/tray.py` | ícone de bandeja (StatusNotifierItem + dbusmenu) |
+| `controlfanrgb/perkey.py` | resolve o mapa tecla-a-tecla para as 4 zonas |
 | `kernel/` | patch do módulo `facer` + instalar/reverter |
 
 ### Arquitetura
 
 ```
 GUI ─┐
-CLI ─┼─ D-Bus (sistema) ─>  pulsedeckd  ─>  facer 1.1 (DKMS)
+CLI ─┼─ D-Bus (sistema) ─>  controlfanrgbd  ─>  facer 1.1 (DKMS)
 Tray ┘                           │
                         /dev/acer-gkbbl-*
                         /sys/.../acer-wmi/turbo
@@ -140,7 +140,7 @@ software em [`docs/poc/`](docs/poc/).
 
 ## Sobre o nome
 
-`PulseDeck` é provisório. "Predator" e "PredatorSense" são marcas da Acer e
+`ControlFanRGB` é provisório. "Predator" e "PredatorSense" são marcas da Acer e
 não podem ser usadas no nome publicado. Renomear o repositório depois é
 barato — o GitHub mantém o redirecionamento.
 
