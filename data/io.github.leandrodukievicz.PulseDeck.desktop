@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=PulseDeck
+GenericName=Controle de RGB e refrigeração
+Comment=Controla o teclado RGB e a refrigeração de notebooks Acer Predator
+Exec=pulsedeck
+Icon=keyboard-brightness
+Terminal=false
+Categories=Settings;HardwareSettings;GTK;
+Keywords=rgb;teclado;keyboard;predator;acer;ventoinha;fan;turbo;
+StartupNotify=true
