@@ -1,0 +1,236 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>PulseDeck — Cyber HUD</title><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1440px;height:920px;overflow:hidden}
+body{font-family:'Rajdhani','Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.disp{font-family:'Orbitron','Rajdhani',sans-serif;letter-spacing:.06em}
+
+/* ---- teclado ---- */
+.kb{display:flex;gap:calc(10px*var(--kbs));padding:calc(12px*var(--kbs));
+    border-radius:14px;background:#0a0b12;border:1px solid rgba(255,255,255,.07)}
+.kb-main{flex:var(--mf,785);display:flex;flex-direction:column;gap:calc(5px*var(--kbs))}
+.kb-num{flex:215;display:flex;flex-direction:column;gap:calc(5px*var(--kbs))}
+.kb-row{display:flex;gap:calc(5px*var(--kbs))}
+.kb-key{position:relative;height:calc(30px*var(--kbs));border-radius:calc(5px*var(--kbs));
+    background:linear-gradient(#20222f,#14161f);display:grid;place-items:center;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),
+               inset 0 calc(-1px*var(--kbs)) 0 rgba(0,0,0,.6),
+               0 0 calc(14px*var(--kbs)) -2px var(--kc);overflow:hidden}
+.kb-key::before{content:'';position:absolute;inset:0;background:var(--kc);opacity:.5}
+.kb-key::after{content:'';position:absolute;inset:0;
+    background:radial-gradient(120% 140% at 50% 120%,rgba(255,255,255,.35),transparent 60%)}
+.kb-key span{position:relative;z-index:2;font-size:calc(10px*var(--kbs));font-weight:600;
+    color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.8);letter-spacing:.02em}
+.kb-key.kb-wide span{font-size:calc(8.5px*var(--kbs));text-transform:uppercase;opacity:.9}
+.kb-key.kb-empty{opacity:0;box-shadow:none}
+
+/* ---- gauges ---- */
+.gauge{position:relative;aspect-ratio:1;display:grid;place-items:center}
+.gauge svg{position:absolute;inset:0;transform:rotate(-135deg)}
+.gauge circle{fill:none;stroke-width:7;stroke-linecap:round}
+.gbg{stroke:rgba(255,255,255,.08)}
+.gfg{stroke:var(--gc);filter:drop-shadow(0 0 6px var(--gc))}
+.gval{text-align:center;line-height:1}
+.gval b{font-family:'JetBrains Mono',monospace;font-size:21px;color:#fff;font-weight:700}
+.gval i{display:block;font-style:normal;font-size:9px;letter-spacing:.14em;
+    color:rgba(255,255,255,.45);margin-top:3px}
+.glab{position:absolute;bottom:-17px;font-size:10px;letter-spacing:.16em;
+    text-transform:uppercase;color:rgba(255,255,255,.5);white-space:nowrap}
+
+/* ---- sparkline ---- */
+.spark{width:100%;height:52px}
+.spark polyline{fill:none;stroke:var(--sc);stroke-width:2;stroke-linejoin:round}
+.spark polyline.fill{fill:color-mix(in srgb,var(--sc) 16%,transparent);stroke:none}
+
+body{background:
+  radial-gradient(1100px 700px at 12% -10%,#1b0f2e 0%,transparent 60%),
+  radial-gradient(900px 600px at 96% 8%,#04232c 0%,transparent 55%),#06060b;
+  color:#e8eaf2;display:flex}
+.rail{width:62px;border-right:1px solid rgba(255,255,255,.06);
+  display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0;
+  background:rgba(0,0,0,.35)}
+.rail .logo{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+  background:linear-gradient(140deg,#ff2d6f,#8b5cf6);font-weight:900;font-size:15px;
+  color:#fff;margin-bottom:12px;box-shadow:0 0 18px -4px #ff2d6f}
+.rail a{width:40px;height:38px;border-radius:9px;display:grid;place-items:center;
+  font-size:17px;color:rgba(255,255,255,.4);text-decoration:none}
+.rail a.on{background:rgba(45,226,255,.12);color:#2de2ff;
+  box-shadow:inset 0 0 0 1px rgba(45,226,255,.3)}
+.rail .sp{flex:1}
+.wrap{flex:1;display:flex;flex-direction:column;min-width:0}
+.top{height:52px;display:flex;align-items:center;gap:14px;padding:0 20px;
+  border-bottom:1px solid rgba(255,255,255,.06)}
+.top h1{font-size:15px;font-weight:700;letter-spacing:.14em}
+.top h1 em{font-style:normal;color:#2de2ff}
+.chip{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;
+  border-radius:20px;border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.6)}
+.chip.live{border-color:rgba(157,255,60,.35);color:#9dff3c;background:rgba(157,255,60,.07)}
+.dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:#9dff3c;
+  margin-right:6px;box-shadow:0 0 7px #9dff3c}
+.body{flex:1;display:grid;grid-template-columns:1fr 286px;min-height:0}
+.main{padding:18px 20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.side{border-left:1px solid rgba(255,255,255,.06);padding:18px 18px;
+  display:flex;flex-direction:column;gap:16px;background:rgba(0,0,0,.22)}
+.lbl{font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;
+  color:rgba(255,255,255,.38);margin-bottom:9px;display:flex;
+  justify-content:space-between;align-items:center}
+.lbl b{color:#2de2ff;font-weight:700;letter-spacing:.1em}
+.zones{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.zone{border-radius:9px;padding:9px 10px;background:#0d0e16;
+  border:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:8px}
+.zone.sel{border-color:#2de2ff;box-shadow:0 0 0 1px #2de2ff,0 0 16px -6px #2de2ff}
+.sw{width:22px;height:22px;border-radius:6px;box-shadow:0 0 12px -2px var(--c);
+  background:var(--c);flex:none}
+.zone i{font-style:normal;font-size:9px;letter-spacing:.12em;
+  color:rgba(255,255,255,.45);text-transform:uppercase;display:block}
+.zone b{font-size:11px;font-family:'JetBrains Mono',monospace;color:#fff}
+.modes{display:flex;flex-wrap:wrap;gap:6px}
+.mode{padding:7px 12px;border-radius:7px;font-size:11.5px;font-weight:600;
+  background:#0d0e16;border:1px solid rgba(255,255,255,.07);color:rgba(255,255,255,.62)}
+.mode.on{background:linear-gradient(135deg,#ff2d6f,#8b5cf6);color:#fff;border-color:transparent;
+  box-shadow:0 0 18px -6px #ff2d6f}
+.mode.new{border-color:rgba(157,255,60,.3);color:#9dff3c}
+.turbo{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;
+  padding:14px 18px;border-radius:13px;
+  background:linear-gradient(100deg,rgba(255,45,111,.14),rgba(139,92,246,.06) 60%,transparent);
+  border:1px solid rgba(255,45,111,.28)}
+.tbtn{width:92px;height:92px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle at 50% 35%,#ff5c8a,#c1003c);color:#fff;
+  box-shadow:0 0 34px -6px #ff2d6f,inset 0 -3px 10px rgba(0,0,0,.4);text-align:center}
+.tbtn b{display:block;font-family:'Orbitron',sans-serif;font-size:16px;font-weight:900;
+  letter-spacing:.08em}
+.tbtn i{font-style:normal;font-size:9px;letter-spacing:.18em;opacity:.85}
+.tinfo h3{font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:.1em;margin-bottom:5px}
+.tinfo p{font-size:12px;color:rgba(255,255,255,.52);line-height:1.5;max-width:330px}
+.kbd{font-family:'JetBrains Mono',monospace;font-size:10.5px;padding:2px 6px;
+  border-radius:4px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.13);
+  color:#fff}
+.dials{display:flex;gap:26px;padding-right:6px}
+.wheel{width:100%;aspect-ratio:1;border-radius:50%;position:relative;
+  background:conic-gradient(#ff2d6f,#ffb020,#9dff3c,#2de2ff,#4f7cff,#b14aed,#ff2d6f);
+  box-shadow:0 0 36px -12px #b14aed,inset 0 0 0 1px rgba(255,255,255,.12)}
+.wheel::after{content:'';position:absolute;inset:26%;border-radius:50%;
+  background:#0a0b12;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.wheel .pick{position:absolute;width:17px;height:17px;border-radius:50%;
+  border:2.5px solid #fff;top:14%;left:62%;box-shadow:0 2px 8px rgba(0,0,0,.6)}
+.hex{display:flex;gap:7px;align-items:center;margin-top:12px}
+.hex .box{flex:1;background:#0d0e16;border:1px solid rgba(255,255,255,.09);
+  border-radius:7px;padding:7px 10px;font-family:'JetBrains Mono',monospace;
+  font-size:12px;color:#2de2ff}
+.sl{margin-top:13px}
+.sl .t{display:flex;justify-content:space-between;font-size:10.5px;
+  color:rgba(255,255,255,.5);margin-bottom:6px;letter-spacing:.06em}
+.sl .t b{font-family:'JetBrains Mono',monospace;color:#fff}
+.track{height:5px;border-radius:4px;background:rgba(255,255,255,.1);position:relative}
+.track i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;
+  background:linear-gradient(90deg,#8b5cf6,#2de2ff)}
+.track b{position:absolute;top:50%;width:13px;height:13px;border-radius:50%;
+  background:#fff;transform:translate(-50%,-50%);box-shadow:0 0 10px #2de2ff}
+.presets{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.pre{border-radius:8px;padding:8px 9px;background:#0d0e16;
+  border:1px solid rgba(255,255,255,.07)}
+.pre .bar{height:7px;border-radius:3px;margin-bottom:7px}
+.pre span{font-size:10.5px;color:rgba(255,255,255,.7);font-weight:600}
+.pre.on{border-color:#2de2ff}
+</style></head><body>
+<div class="rail">
+  <div class="logo">P</div>
+  <a class="on" title="Iluminação">◉</a><a title="Resfriamento">❄</a>
+  <a title="Perfis">▤</a><a title="Macros">⌘</a><div class="sp"></div>
+  <a title="Ajustes">⚙</a>
+</div>
+<div class="wrap">
+  <div class="top">
+    <h1 class="disp">PULSE<em>DECK</em></h1>
+    <span class="chip">Predator PH315-54</span>
+    <span class="chip live"><span class="dot"></span>daemon ativo</span>
+    <div style="flex:1"></div>
+    <span class="chip">perfil: <b style="color:#fff">Vapor</b></span>
+  </div>
+  <div class="body">
+    <div class="main">
+      <div>
+        <div class="lbl">Teclado <span>4 zonas · clique numa tecla pra pintar <b>→ resolve pra zona</b></span></div>
+        <div class="kb" style="--kbs:1.42"><div class="kb-main"><div class="kb-row"><div class="kb-key kb-wide" style="flex:1;--kc:#ff2d6f"><span>esc</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>F1</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>F2</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>F3</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>F4</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>F5</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>F6</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>F7</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>F8</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>F9</span></div><div class="kb-key kb-wide" style="flex:1;--kc:#4f7cff"><span>F10</span></div><div class="kb-key kb-wide" style="flex:1;--kc:#4f7cff"><span>F11</span></div><div class="kb-key kb-wide" style="flex:1;--kc:#4f7cff"><span>F12</span></div><div class="kb-key kb-wide" style="flex:2;--kc:#4f7cff"><span>del</span></div></div><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>~</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>1</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>2</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>3</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>4</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>5</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>6</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>7</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>8</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>9</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>0</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>-</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>=</span></div><div class="kb-key" style="flex:2;--kc:#4f7cff"><span>⌫</span></div></div><div class="kb-row"><div class="kb-key kb-wide" style="flex:1.5;--kc:#ff2d6f"><span>tab</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>Q</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>W</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>E</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>R</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>T</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>Y</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>U</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>I</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>O</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>P</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>[</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>]</span></div><div class="kb-key" style="flex:1.5;--kc:#4f7cff"><span>\</span></div></div><div class="kb-row"><div class="kb-key kb-wide" style="flex:1.75;--kc:#ff2d6f"><span>caps</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>A</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>S</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>D</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>F</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>G</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>H</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>J</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>K</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>L</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>;</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>'</span></div><div class="kb-key kb-wide" style="flex:2.25;--kc:#4f7cff"><span>enter</span></div></div><div class="kb-row"><div class="kb-key kb-wide" style="flex:2.25;--kc:#ff2d6f"><span>shift</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>Z</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>X</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>C</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>V</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>B</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>N</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>M</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>,</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>.</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>/</span></div><div class="kb-key kb-wide" style="flex:1.75;--kc:#4f7cff"><span>shift</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>↑</span></div></div><div class="kb-row"><div class="kb-key kb-wide" style="flex:1.25;--kc:#ff2d6f"><span>ctrl</span></div><div class="kb-key" style="flex:1.25;--kc:#ff2d6f"><span>fn</span></div><div class="kb-key" style="flex:1.25;--kc:#ff2d6f"><span>⊞</span></div><div class="kb-key kb-wide" style="flex:1.25;--kc:#ff2d6f"><span>alt</span></div><div class="kb-key kb-wide" style="flex:4.75;--kc:#b14aed"><span>space</span></div><div class="kb-key kb-wide" style="flex:1.25;--kc:#4f7cff"><span>alt</span></div><div class="kb-key kb-wide" style="flex:1.25;--kc:#4f7cff"><span>ctrl</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>←</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>↓</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>→</span></div></div></div><div class="kb-num"><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>num</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>/</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>*</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>-</span></div></div><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>7</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>8</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>9</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>+</span></div></div><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>4</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>5</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>6</span></div><div class="kb-key kb-empty" style="flex:1;--kc:#2de2ff"><span></span></div></div><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>1</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>2</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>3</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>⏎</span></div></div><div class="kb-row"><div class="kb-key" style="flex:2;--kc:#2de2ff"><span>0</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>.</span></div><div class="kb-key kb-empty" style="flex:1;--kc:#2de2ff"><span></span></div></div></div></div>
+      </div>
+      <div class="zones">
+        <div class="zone sel" style="--c:#ff2d6f"><div class="sw"></div><div><i>zona 1</i><b>#FF2D6F</b></div></div>
+        <div class="zone" style="--c:#b14aed"><div class="sw"></div><div><i>zona 2</i><b>#B14AED</b></div></div>
+        <div class="zone" style="--c:#4f7cff"><div class="sw"></div><div><i>zona 3</i><b>#4F7CFF</b></div></div>
+        <div class="zone" style="--c:#2de2ff"><div class="sw"></div><div><i>zona 4</i><b>#2DE2FF</b></div></div>
+      </div>
+      <div>
+        <div class="lbl">Efeito</div>
+        <div class="modes">
+          <span class="mode">Estático</span><span class="mode">Respiração</span>
+          <span class="mode">Neon</span><span class="mode on">Onda</span>
+          <span class="mode">Shifting</span><span class="mode">Zoom</span>
+          <span class="mode new">+ Arco-íris</span><span class="mode new">+ Carga CPU</span>
+          <span class="mode new">+ Áudio</span>
+        </div>
+      </div>
+      <div class="turbo">
+        <div class="tbtn"><div><b>ON</b><i>TURBO</i></div></div>
+        <div class="tinfo">
+          <h3>Modo turbo ligado</h3>
+          <p>Ventoinhas em máximo e overclock liberado. Atalho global
+          <span class="kbd">Super</span>+<span class="kbd">T</span> — ou a tecla Turbo do chassi.</p>
+        </div>
+        <div class="dials">
+          <div class="gauge" style="--gc:#ff2d6f;width:108px">
+<svg viewBox="0 0 100 100"><circle class="gbg" cx="50" cy="50" r="44"/>
+<circle class="gfg" cx="50" cy="50" r="44"
+ style="stroke-dasharray:276.5;stroke-dashoffset:44.2"/></svg>
+<div class="gval"><b>4290</b><i>RPM</i></div>
+<div class="glab">Vent. CPU</div></div>
+          <div class="gauge" style="--gc:#2de2ff;width:108px">
+<svg viewBox="0 0 100 100"><circle class="gbg" cx="50" cy="50" r="44"/>
+<circle class="gfg" cx="50" cy="50" r="44"
+ style="stroke-dasharray:276.5;stroke-dashoffset:33.2"/></svg>
+<div class="gval"><b>4610</b><i>RPM</i></div>
+<div class="glab">Vent. GPU</div></div>
+          <div class="gauge" style="--gc:#ffb020;width:108px">
+<svg viewBox="0 0 100 100"><circle class="gbg" cx="50" cy="50" r="44"/>
+<circle class="gfg" cx="50" cy="50" r="44"
+ style="stroke-dasharray:276.5;stroke-dashoffset:77.4"/></svg>
+<div class="gval"><b>72</b><i>°C</i></div>
+<div class="glab">CPU</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="side">
+      <div>
+        <div class="lbl">Cor da zona 1</div>
+        <div class="wheel"><div class="pick"></div></div>
+        <div class="hex"><div class="box">#FF2D6F</div>
+          <div class="box" style="flex:none;color:rgba(255,255,255,.5)">HSV</div></div>
+      </div>
+      <div>
+        <div class="sl"><div class="t"><span>Brilho</span><b>100%</b></div>
+          <div class="track"><i style="width:100%"></i><b style="left:100%"></b></div></div>
+        <div class="sl"><div class="t"><span>Velocidade</span><b>5</b></div>
+          <div class="track"><i style="width:55%"></i><b style="left:55%"></b></div></div>
+        <div class="sl"><div class="t"><span>Direção</span><b>→</b></div>
+          <div class="track"><i style="width:100%"></i><b style="left:100%"></b></div></div>
+      </div>
+      <div>
+        <div class="lbl">Temas prontos</div>
+        <div class="presets">
+          <div class="pre on"><div class="bar" style="background:linear-gradient(90deg,#ff2d6f,#b14aed,#4f7cff,#2de2ff)"></div><span>Vapor</span></div>
+          <div class="pre"><div class="bar" style="background:linear-gradient(90deg,#39ff14,#0aff9d,#00e0ff,#0066ff)"></div><span>Matrix</span></div>
+          <div class="pre"><div class="bar" style="background:linear-gradient(90deg,#ff0040,#ff6a00,#ffd000,#ff0040)"></div><span>Inferno</span></div>
+          <div class="pre"><div class="bar" style="background:linear-gradient(90deg,#00e5ff,#2979ff,#7c4dff,#00e5ff)"></div><span>Glacial</span></div>
+          <div class="pre"><div class="bar" style="background:linear-gradient(90deg,#ffe8c2,#ffd089,#ffb347,#ff8c42)"></div><span>Âmbar</span></div>
+          <div class="pre"><div class="bar" style="background:linear-gradient(90deg,#009b3a,#ffdf00,#002776,#009b3a)"></div><span>Brasil</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="lbl">Ventoinhas · últimos 60 s</div>
+        <svg class="spark" viewBox="0 0 240 52" style="--sc:#2de2ff">
+<polyline points="0.0,48.0 16.0,46.4 32.0,45.2 48.0,46.2 64.0,43.1 80.0,38.1 96.0,30.6 112.0,24.1 128.0,18.0 144.0,12.3 160.0,8.1 176.0,8.9 192.0,6.4 208.0,4.0 224.0,4.8 240.0,5.4"/>
+<polyline class="fill" points="0,52 0.0,48.0 16.0,46.4 32.0,45.2 48.0,46.2 64.0,43.1 80.0,38.1 96.0,30.6 112.0,24.1 128.0,18.0 144.0,12.3 160.0,8.1 176.0,8.9 192.0,6.4 208.0,4.0 224.0,4.8 240.0,5.4 240,52"/></svg>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>

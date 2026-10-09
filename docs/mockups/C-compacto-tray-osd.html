@@ -1,0 +1,182 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>PulseDeck — Compacto + OSD</title><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1440px;height:920px;overflow:hidden}
+body{font-family:'Rajdhani','Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.disp{font-family:'Orbitron','Rajdhani',sans-serif;letter-spacing:.06em}
+
+/* ---- teclado ---- */
+.kb{display:flex;gap:calc(10px*var(--kbs));padding:calc(12px*var(--kbs));
+    border-radius:14px;background:#0a0b12;border:1px solid rgba(255,255,255,.07)}
+.kb-main{flex:var(--mf,785);display:flex;flex-direction:column;gap:calc(5px*var(--kbs))}
+.kb-num{flex:215;display:flex;flex-direction:column;gap:calc(5px*var(--kbs))}
+.kb-row{display:flex;gap:calc(5px*var(--kbs))}
+.kb-key{position:relative;height:calc(30px*var(--kbs));border-radius:calc(5px*var(--kbs));
+    background:linear-gradient(#20222f,#14161f);display:grid;place-items:center;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),
+               inset 0 calc(-1px*var(--kbs)) 0 rgba(0,0,0,.6),
+               0 0 calc(14px*var(--kbs)) -2px var(--kc);overflow:hidden}
+.kb-key::before{content:'';position:absolute;inset:0;background:var(--kc);opacity:.5}
+.kb-key::after{content:'';position:absolute;inset:0;
+    background:radial-gradient(120% 140% at 50% 120%,rgba(255,255,255,.35),transparent 60%)}
+.kb-key span{position:relative;z-index:2;font-size:calc(10px*var(--kbs));font-weight:600;
+    color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.8);letter-spacing:.02em}
+.kb-key.kb-wide span{font-size:calc(8.5px*var(--kbs));text-transform:uppercase;opacity:.9}
+.kb-key.kb-empty{opacity:0;box-shadow:none}
+
+/* ---- gauges ---- */
+.gauge{position:relative;aspect-ratio:1;display:grid;place-items:center}
+.gauge svg{position:absolute;inset:0;transform:rotate(-135deg)}
+.gauge circle{fill:none;stroke-width:7;stroke-linecap:round}
+.gbg{stroke:rgba(255,255,255,.08)}
+.gfg{stroke:var(--gc);filter:drop-shadow(0 0 6px var(--gc))}
+.gval{text-align:center;line-height:1}
+.gval b{font-family:'JetBrains Mono',monospace;font-size:21px;color:#fff;font-weight:700}
+.gval i{display:block;font-style:normal;font-size:9px;letter-spacing:.14em;
+    color:rgba(255,255,255,.45);margin-top:3px}
+.glab{position:absolute;bottom:-17px;font-size:10px;letter-spacing:.16em;
+    text-transform:uppercase;color:rgba(255,255,255,.5);white-space:nowrap}
+
+/* ---- sparkline ---- */
+.spark{width:100%;height:52px}
+.spark polyline{fill:none;stroke:var(--sc);stroke-width:2;stroke-linejoin:round}
+.spark polyline.fill{fill:color-mix(in srgb,var(--sc) 16%,transparent);stroke:none}
+
+body{background:
+  radial-gradient(900px 600px at 20% 15%,#2a1b4d,transparent 60%),
+  radial-gradient(800px 600px at 85% 80%,#0d3b4a,transparent 60%),#0b0a12;
+  color:#e8eaf2;position:relative;overflow:hidden}
+.desk{position:absolute;inset:0;opacity:.5;
+  background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.03) 0 1px,transparent 1px 46px),
+   repeating-linear-gradient(0deg,rgba(255,255,255,.03) 0 1px,transparent 1px 46px)}
+.panel{position:absolute;top:0;left:0;right:0;height:30px;background:rgba(0,0,0,.55);
+  backdrop-filter:blur(14px);display:flex;align-items:center;padding:0 14px;gap:16px;
+  font-size:11.5px;color:rgba(255,255,255,.7)}
+.panel .sp{flex:1}
+.panel .tray{display:flex;gap:11px;align-items:center;font-size:13px}
+.panel .tray .act{color:#2de2ff;text-shadow:0 0 10px #2de2ff}
+
+/* janela compacta */
+.win{position:absolute;top:52px;right:36px;width:372px;border-radius:14px;overflow:hidden;
+  background:rgba(14,15,23,.93);backdrop-filter:blur(26px);
+  border:1px solid rgba(255,255,255,.1);box-shadow:0 30px 70px -18px rgba(0,0,0,.85)}
+.wh{display:flex;align-items:center;gap:9px;padding:11px 13px;
+  border-bottom:1px solid rgba(255,255,255,.07)}
+.wh .lg{width:22px;height:22px;border-radius:6px;background:linear-gradient(140deg,#ff2d6f,#8b5cf6);
+  display:grid;place-items:center;font-size:11px;font-weight:900}
+.wh b{font-size:12.5px;letter-spacing:.1em}
+.wh .x{margin-left:auto;display:flex;gap:6px}
+.wh .x i{width:11px;height:11px;border-radius:50%;background:rgba(255,255,255,.18);font-style:normal}
+.wc{padding:13px}
+.wl{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.35);
+  margin:12px 0 7px}
+.wl:first-child{margin-top:0}
+.sws{display:flex;gap:7px}
+.sws .s{flex:1;height:32px;border-radius:8px;background:var(--c);
+  box-shadow:0 0 14px -3px var(--c);border:1px solid rgba(255,255,255,.14)}
+.sws .s.sel{outline:2px solid #fff;outline-offset:2px}
+.mrow{display:flex;gap:5px;flex-wrap:wrap}
+.mrow span{font-size:10.5px;font-weight:600;padding:5px 9px;border-radius:6px;
+  background:rgba(255,255,255,.06);color:rgba(255,255,255,.6)}
+.mrow span.on{background:linear-gradient(135deg,#ff2d6f,#8b5cf6);color:#fff}
+.tline{display:flex;align-items:center;gap:11px;margin-top:14px;padding:11px 12px;
+  border-radius:10px;background:rgba(255,45,111,.12);border:1px solid rgba(255,45,111,.3)}
+.tline .big{font-family:'Orbitron',sans-serif;font-size:13px;font-weight:900;color:#ff5c8a}
+.tline .rp{margin-left:auto;text-align:right;font-family:'JetBrains Mono',monospace;
+  font-size:11px;line-height:1.5;color:rgba(255,255,255,.8)}
+.tsw{width:40px;height:22px;border-radius:12px;background:#ff2d6f;position:relative;flex:none;
+  box-shadow:0 0 14px -3px #ff2d6f}
+.tsw::after{content:'';position:absolute;top:2px;right:2px;width:18px;height:18px;
+  border-radius:50%;background:#fff}
+
+/* menu do tray */
+.menu{position:absolute;top:36px;left:50%;transform:translateX(-50%);width:252px;
+  border-radius:12px;background:rgba(18,19,28,.96);backdrop-filter:blur(22px);
+  border:1px solid rgba(255,255,255,.1);box-shadow:0 26px 60px -16px rgba(0,0,0,.85);
+  padding:7px;font-size:12.5px}
+.menu .mi{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;
+  color:rgba(255,255,255,.82)}
+.menu .mi.hl{background:rgba(255,255,255,.08)}
+.menu .mi .k{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;
+  color:rgba(255,255,255,.35)}
+.menu .hr{height:1px;background:rgba(255,255,255,.08);margin:5px 8px}
+.menu .mi .sq{width:13px;height:13px;border-radius:4px;background:var(--c)}
+
+/* OSD */
+.osd{position:absolute;left:50%;bottom:92px;transform:translateX(-50%);
+  display:flex;align-items:center;gap:20px;padding:19px 30px;border-radius:18px;
+  background:rgba(10,10,16,.88);backdrop-filter:blur(30px);
+  border:1px solid rgba(255,45,111,.35);
+  box-shadow:0 0 60px -10px rgba(255,45,111,.55),0 30px 60px -20px #000}
+.osd .ring{width:66px;height:66px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle at 50% 35%,#ff5c8a,#c1003c);
+  font-family:'Orbitron',sans-serif;font-weight:900;font-size:19px;
+  box-shadow:0 0 30px -4px #ff2d6f}
+.osd h2{font-family:'Orbitron',sans-serif;font-size:17px;letter-spacing:.1em;margin-bottom:5px}
+.osd p{font-size:12px;color:rgba(255,255,255,.55)}
+.osd .st{display:flex;gap:22px;padding-left:22px;border-left:1px solid rgba(255,255,255,.12)}
+.osd .st div{text-align:center}
+.osd .st b{display:block;font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700}
+.osd .st i{font-style:normal;font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+  color:rgba(255,255,255,.4)}
+.track{height:5px;border-radius:4px;background:rgba(255,255,255,.1);position:relative;
+  margin-bottom:2px}
+.track i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;
+  background:linear-gradient(90deg,#8b5cf6,#2de2ff)}
+.track b{position:absolute;top:50%;width:12px;height:12px;border-radius:50%;
+  background:#fff;transform:translate(-50%,-50%);box-shadow:0 0 10px #2de2ff}
+.note{position:absolute;left:36px;bottom:30px;font-size:11.5px;color:rgba(255,255,255,.4);
+  max-width:330px;line-height:1.6;border-left:2px solid rgba(45,226,255,.5);padding-left:12px}
+</style></head><body>
+<div class="desk"></div>
+<div class="panel">
+  <span>Atividades</span><span class="sp"></span>
+  <span class="tray">◉<span class="act">▲</span> ⌨ 🔊 ⏻</span>
+  <span class="sp"></span><span class="mono">16:42</span>
+</div>
+<div class="menu">
+  <div class="mi hl"><span class="sq" style="--c:#ff2d6f"></span> Turbo <b style="margin-left:4px;color:#ff5c8a">ligado</b><span class="k">Super+T</span></div>
+  <div class="mi">❄ Ventoinhas <span class="k">4290 / 4610</span></div>
+  <div class="hr"></div>
+  <div class="mi"><span class="sq" style="--c:#b14aed"></span> Tema: Vapor</div>
+  <div class="mi"><span class="sq" style="--c:#39ff14"></span> Tema: Matrix</div>
+  <div class="mi"><span class="sq" style="--c:#ff6a00"></span> Tema: Inferno</div>
+  <div class="hr"></div>
+  <div class="mi">◉ Apagar teclado <span class="k">Super+K</span></div>
+  <div class="mi">Abrir PulseDeck…</div>
+</div>
+<div class="win">
+  <div class="wh"><div class="lg">P</div><b class="disp">PULSEDECK</b>
+    <div class="x"><i></i><i></i><i></i></div></div>
+  <div class="wc">
+    <div class="wl">Pré-visualização</div>
+    <div class="kb" style="--kbs:0.8"><div class="kb-main"><div class="kb-row"><div class="kb-key kb-wide" style="flex:1;--kc:#ff2d6f"><span>esc</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>F1</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>F2</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>F3</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>F4</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>F5</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>F6</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>F7</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>F8</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>F9</span></div><div class="kb-key kb-wide" style="flex:1;--kc:#4f7cff"><span>F10</span></div><div class="kb-key kb-wide" style="flex:1;--kc:#4f7cff"><span>F11</span></div><div class="kb-key kb-wide" style="flex:1;--kc:#4f7cff"><span>F12</span></div><div class="kb-key kb-wide" style="flex:2;--kc:#4f7cff"><span>del</span></div></div><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>~</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>1</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>2</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>3</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>4</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>5</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>6</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>7</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>8</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>9</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>0</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>-</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>=</span></div><div class="kb-key" style="flex:2;--kc:#4f7cff"><span>⌫</span></div></div><div class="kb-row"><div class="kb-key kb-wide" style="flex:1.5;--kc:#ff2d6f"><span>tab</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>Q</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>W</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>E</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>R</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>T</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>Y</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>U</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>I</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>O</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>P</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>[</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>]</span></div><div class="kb-key" style="flex:1.5;--kc:#4f7cff"><span>\</span></div></div><div class="kb-row"><div class="kb-key kb-wide" style="flex:1.75;--kc:#ff2d6f"><span>caps</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>A</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>S</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>D</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>F</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>G</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>H</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>J</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>K</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>L</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>;</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>'</span></div><div class="kb-key kb-wide" style="flex:2.25;--kc:#4f7cff"><span>enter</span></div></div><div class="kb-row"><div class="kb-key kb-wide" style="flex:2.25;--kc:#ff2d6f"><span>shift</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>Z</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>X</span></div><div class="kb-key" style="flex:1;--kc:#ff2d6f"><span>C</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>V</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>B</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>N</span></div><div class="kb-key" style="flex:1;--kc:#b14aed"><span>M</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>,</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>.</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>/</span></div><div class="kb-key kb-wide" style="flex:1.75;--kc:#4f7cff"><span>shift</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>↑</span></div></div><div class="kb-row"><div class="kb-key kb-wide" style="flex:1.25;--kc:#ff2d6f"><span>ctrl</span></div><div class="kb-key" style="flex:1.25;--kc:#ff2d6f"><span>fn</span></div><div class="kb-key" style="flex:1.25;--kc:#ff2d6f"><span>⊞</span></div><div class="kb-key kb-wide" style="flex:1.25;--kc:#ff2d6f"><span>alt</span></div><div class="kb-key kb-wide" style="flex:4.75;--kc:#b14aed"><span>space</span></div><div class="kb-key kb-wide" style="flex:1.25;--kc:#4f7cff"><span>alt</span></div><div class="kb-key kb-wide" style="flex:1.25;--kc:#4f7cff"><span>ctrl</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>←</span></div><div class="kb-key" style="flex:1;--kc:#4f7cff"><span>↓</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>→</span></div></div></div><div class="kb-num"><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>num</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>/</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>*</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>-</span></div></div><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>7</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>8</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>9</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>+</span></div></div><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>4</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>5</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>6</span></div><div class="kb-key kb-empty" style="flex:1;--kc:#2de2ff"><span></span></div></div><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>1</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>2</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>3</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>⏎</span></div></div><div class="kb-row"><div class="kb-key" style="flex:2;--kc:#2de2ff"><span>0</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>.</span></div><div class="kb-key kb-empty" style="flex:1;--kc:#2de2ff"><span></span></div></div></div></div>
+    <div class="wl">Zonas</div>
+    <div class="sws">
+      <div class="s sel" style="--c:#ff2d6f"></div><div class="s" style="--c:#b14aed"></div>
+      <div class="s" style="--c:#4f7cff"></div><div class="s" style="--c:#2de2ff"></div>
+    </div>
+    <div class="wl">Efeito</div>
+    <div class="mrow"><span class="on">Onda</span><span>Estático</span><span>Neon</span>
+      <span>Respiração</span><span>Zoom</span><span>Arco-íris</span></div>
+    <div class="wl">Brilho · 100%</div>
+    <div class="track"><i style="width:100%"></i><b style="left:100%"></b></div>
+    <div class="tline">
+      <div class="tsw"></div>
+      <div><div class="big">TURBO</div></div>
+      <div class="rp">CPU 4290 rpm<br>GPU 4610 rpm</div>
+    </div>
+  </div>
+</div>
+<div class="osd">
+  <div class="ring">ON</div>
+  <div><h2>TURBO</h2><p>Ventoinhas em máximo</p></div>
+  <div class="st">
+    <div><b>4290</b><i>cpu rpm</i></div>
+    <div><b>4610</b><i>gpu rpm</i></div>
+    <div><b>72°</b><i>cpu temp</i></div>
+  </div>
+</div>
+<div class="note">Opção C — mora no tray. Atalho global liga/desliga o turbo e o
+OSD aparece por 3 s com a rotação real das ventoinhas. A janela grande é opcional.</div>
+</body></html>

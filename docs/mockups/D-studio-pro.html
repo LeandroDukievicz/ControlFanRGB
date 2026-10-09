@@ -1,0 +1,257 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>PulseDeck — Studio</title><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1440px;height:920px;overflow:hidden}
+body{font-family:'Rajdhani','Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.disp{font-family:'Orbitron','Rajdhani',sans-serif;letter-spacing:.06em}
+
+/* ---- teclado ---- */
+.kb{display:flex;gap:calc(10px*var(--kbs));padding:calc(12px*var(--kbs));
+    border-radius:14px;background:#0a0b12;border:1px solid rgba(255,255,255,.07)}
+.kb-main{flex:var(--mf,785);display:flex;flex-direction:column;gap:calc(5px*var(--kbs))}
+.kb-num{flex:215;display:flex;flex-direction:column;gap:calc(5px*var(--kbs))}
+.kb-row{display:flex;gap:calc(5px*var(--kbs))}
+.kb-key{position:relative;height:calc(30px*var(--kbs));border-radius:calc(5px*var(--kbs));
+    background:linear-gradient(#20222f,#14161f);display:grid;place-items:center;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),
+               inset 0 calc(-1px*var(--kbs)) 0 rgba(0,0,0,.6),
+               0 0 calc(14px*var(--kbs)) -2px var(--kc);overflow:hidden}
+.kb-key::before{content:'';position:absolute;inset:0;background:var(--kc);opacity:.5}
+.kb-key::after{content:'';position:absolute;inset:0;
+    background:radial-gradient(120% 140% at 50% 120%,rgba(255,255,255,.35),transparent 60%)}
+.kb-key span{position:relative;z-index:2;font-size:calc(10px*var(--kbs));font-weight:600;
+    color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.8);letter-spacing:.02em}
+.kb-key.kb-wide span{font-size:calc(8.5px*var(--kbs));text-transform:uppercase;opacity:.9}
+.kb-key.kb-empty{opacity:0;box-shadow:none}
+
+/* ---- gauges ---- */
+.gauge{position:relative;aspect-ratio:1;display:grid;place-items:center}
+.gauge svg{position:absolute;inset:0;transform:rotate(-135deg)}
+.gauge circle{fill:none;stroke-width:7;stroke-linecap:round}
+.gbg{stroke:rgba(255,255,255,.08)}
+.gfg{stroke:var(--gc);filter:drop-shadow(0 0 6px var(--gc))}
+.gval{text-align:center;line-height:1}
+.gval b{font-family:'JetBrains Mono',monospace;font-size:21px;color:#fff;font-weight:700}
+.gval i{display:block;font-style:normal;font-size:9px;letter-spacing:.14em;
+    color:rgba(255,255,255,.45);margin-top:3px}
+.glab{position:absolute;bottom:-17px;font-size:10px;letter-spacing:.16em;
+    text-transform:uppercase;color:rgba(255,255,255,.5);white-space:nowrap}
+
+/* ---- sparkline ---- */
+.spark{width:100%;height:52px}
+.spark polyline{fill:none;stroke:var(--sc);stroke-width:2;stroke-linejoin:round}
+.spark polyline.fill{fill:color-mix(in srgb,var(--sc) 16%,transparent);stroke:none}
+
+body{background:#0a0a0f;color:#dfe3ec;display:grid;
+  grid-template-columns:196px 1fr 268px;grid-template-rows:44px 1fr 128px;
+  grid-template-areas:"hd hd hd" "lf ct rt" "tl tl tl"}
+.hd{grid-area:hd;display:flex;align-items:center;gap:13px;padding:0 16px;
+  background:#101119;border-bottom:1px solid rgba(255,255,255,.07)}
+.hd .lg{width:25px;height:25px;border-radius:7px;display:grid;place-items:center;
+  background:linear-gradient(140deg,#9dff3c,#00d4a0);color:#06240f;font-weight:900;font-size:12px}
+.hd b{font-size:13px;letter-spacing:.13em}
+.tabs{display:flex;gap:1px;margin-left:12px}
+.tabs span{font-size:11.5px;font-weight:600;padding:5px 12px;border-radius:6px;
+  color:rgba(255,255,255,.45)}
+.tabs span.on{background:rgba(157,255,60,.12);color:#9dff3c}
+.hd .r{margin-left:auto;display:flex;gap:8px;align-items:center;font-size:10.5px;
+  color:rgba(255,255,255,.45)}
+.tag{padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.06);
+  font-family:'JetBrains Mono',monospace;font-size:10px}
+.tag.ok{background:rgba(157,255,60,.12);color:#9dff3c}
+
+.lf{grid-area:lf;background:#0d0e14;border-right:1px solid rgba(255,255,255,.07);
+  padding:13px 11px;overflow:hidden}
+.ct{grid-area:ct;padding:16px 18px;display:flex;flex-direction:column;gap:13px;min-width:0}
+.rt{grid-area:rt;background:#0d0e14;border-left:1px solid rgba(255,255,255,.07);
+  padding:13px 13px;display:flex;flex-direction:column;gap:14px}
+.tl{grid-area:tl;background:#0d0e14;border-top:1px solid rgba(255,255,255,.07);
+  padding:11px 16px}
+
+.sl2{font-size:9px;letter-spacing:.2em;text-transform:uppercase;
+  color:rgba(255,255,255,.3);margin-bottom:8px}
+.pf{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;
+  font-size:12px;color:rgba(255,255,255,.72);margin-bottom:2px}
+.pf.on{background:rgba(157,255,60,.1);color:#fff;
+  box-shadow:inset 0 0 0 1px rgba(157,255,60,.22)}
+.pf .d{width:16px;height:16px;border-radius:5px;background:var(--g)}
+.pf .kb2{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:9px;
+  color:rgba(255,255,255,.3)}
+
+.lay{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:7px;
+  background:#12141d;margin-bottom:4px;font-size:11.5px}
+.lay .e{width:7px;height:7px;border-radius:50%;background:#9dff3c}
+.lay .o{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;
+  color:rgba(255,255,255,.4)}
+
+.card{background:#10111a;border:1px solid rgba(255,255,255,.07);border-radius:11px;padding:13px}
+.head{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+.head h3{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:rgba(255,255,255,.55)}
+.head .hint{margin-left:auto;font-size:10.5px;color:rgba(255,255,255,.3)}
+.zbar{display:flex;gap:4px;margin-top:9px}
+.zbar div{flex:1;height:22px;border-radius:5px;display:grid;place-items:center;
+  font-size:9px;font-family:'JetBrains Mono',monospace;color:rgba(0,0,0,.6);font-weight:700;
+  background:var(--c)}
+.tools{display:flex;gap:5px;margin-bottom:11px}
+.tools span{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;
+  background:#171926;font-size:13px;color:rgba(255,255,255,.5)}
+.tools span.on{background:#9dff3c;color:#06240f}
+.pal{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;margin-top:10px}
+.pal i{aspect-ratio:1;border-radius:4px;background:var(--c);font-style:normal}
+
+.kv{display:flex;justify-content:space-between;font-size:11.5px;padding:5px 0;
+  border-bottom:1px solid rgba(255,255,255,.05)}
+.kv b{font-family:'JetBrains Mono',monospace;color:#fff}
+.kv.warn b{color:#ffb020}
+.fanbtns{display:flex;gap:5px;margin-top:9px}
+.fanbtns span{flex:1;text-align:center;font-size:10.5px;font-weight:700;padding:6px 0;
+  border-radius:6px;background:#171926;color:rgba(255,255,255,.5)}
+.fanbtns span.on{background:#ff2d6f;color:#fff;box-shadow:0 0 14px -4px #ff2d6f}
+
+/* timeline */
+.tlh{display:flex;align-items:center;gap:11px;margin-bottom:9px}
+.tlh b{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;
+  color:rgba(255,255,255,.45)}
+.tlh .pl{width:24px;height:24px;border-radius:50%;background:#9dff3c;color:#06240f;
+  display:grid;place-items:center;font-size:10px}
+.tlh .tm{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;
+  color:rgba(255,255,255,.4)}
+.lanes{display:flex;flex-direction:column;gap:4px}
+.lane{display:flex;align-items:center;gap:9px}
+.lane .nm{width:62px;font-size:10px;font-family:'JetBrains Mono',monospace;
+  color:rgba(255,255,255,.4)}
+.lane .trk{flex:1;height:16px;border-radius:5px;background:#12141d;position:relative;
+  overflow:hidden}
+.lane .trk .blk{position:absolute;top:2px;bottom:2px;border-radius:4px;background:var(--c);
+  opacity:.85}
+.pcursor{position:absolute;top:-4px;bottom:-4px;width:2px;background:#9dff3c;left:38%;
+  box-shadow:0 0 10px #9dff3c;z-index:3}
+.resolve{display:flex;align-items:center;gap:15px}
+.rstep{flex:1}
+.rstep b{display:block;font-size:10px;letter-spacing:.11em;text-transform:uppercase;
+  color:rgba(255,255,255,.4);margin-bottom:9px;font-weight:700}
+.rkeys{display:flex;gap:5px}
+.rkeys i{width:30px;height:30px;border-radius:6px;background:var(--c);font-style:normal;
+  display:grid;place-items:center;font-size:11px;font-weight:700;color:rgba(0,0,0,.65);
+  box-shadow:0 0 13px -3px var(--c)}
+.rmix{display:flex;gap:5px}
+.rmix span{flex:1;height:30px;border-radius:6px;background:var(--c);
+  box-shadow:0 0 13px -3px var(--c)}
+.rarrow{color:rgba(255,255,255,.22);font-size:17px}
+.rcode{font-size:10px;line-height:1.72;color:rgba(255,255,255,.5)}
+.rcode em{font-style:normal;color:#9dff3c}
+</style></head><body>
+<div class="hd">
+  <div class="lg">P</div><b class="disp">PULSEDECK STUDIO</b>
+  <div class="tabs"><span>Zonas</span><span class="on">Tecla a tecla</span>
+    <span>Efeitos</span><span>Resfriamento</span></div>
+  <div class="r"><span class="tag">PH315-54</span><span class="tag ok">facer 1.0 · 4 zonas</span>
+    <span class="tag">62 fps</span></div>
+</div>
+
+<div class="lf">
+  <div class="sl2">Perfis</div>
+  <div class="pf on" style="--g:linear-gradient(135deg,#ff3b30,#ffb020)">FPS / WASD<span class="kb2">F1</span></div>
+  <div class="pf" style="--g:linear-gradient(135deg,#ff2d6f,#2de2ff)">Vapor<span class="kb2">F2</span></div>
+  <div class="pf" style="--g:linear-gradient(135deg,#39ff14,#0066ff)">Matrix<span class="kb2">F3</span></div>
+  <div class="pf" style="--g:linear-gradient(135deg,#ffd089,#ff8c42)">Noturno<span class="kb2">F4</span></div>
+  <div class="pf" style="--g:#1b1d2a">Apagado<span class="kb2">F5</span></div>
+  <div class="sl2" style="margin-top:17px">Camadas</div>
+  <div class="lay"><span class="e"></span>Base · cor fixa<span class="o">100%</span></div>
+  <div class="lay"><span class="e"></span>WASD · destaque<span class="o">100%</span></div>
+  <div class="lay"><span class="e" style="background:#2de2ff"></span>Carga CPU<span class="o">40%</span></div>
+  <div class="lay"><span class="e" style="background:#ffb020"></span>Alerta temp.<span class="o">auto</span></div>
+</div>
+
+<div class="ct">
+  <div class="card">
+    <div class="head"><h3>Mapa de teclas</h3>
+      <span class="hint">pinte tecla a tecla — o app resolve a cor dominante de cada zona ▾</span></div>
+    <div class="tools"><span class="on">🖌</span><span>▢</span><span>⬧</span><span>⟳</span><span>⌫</span></div>
+    <div class="kb" style="--kbs:1.46"><div class="kb-main"><div class="kb-row"><div class="kb-key kb-wide" style="flex:1;--kc:#ffffff"><span>esc</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>F1</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>F2</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>F3</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>F4</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>F5</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>F6</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>F7</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>F8</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>F9</span></div><div class="kb-key kb-wide" style="flex:1;--kc:#1b1d2a"><span>F10</span></div><div class="kb-key kb-wide" style="flex:1;--kc:#1b1d2a"><span>F11</span></div><div class="kb-key kb-wide" style="flex:1;--kc:#1b1d2a"><span>F12</span></div><div class="kb-key kb-wide" style="flex:2;--kc:#1b1d2a"><span>del</span></div></div><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>~</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>1</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>2</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>3</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>4</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>5</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>6</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>7</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>8</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>9</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>0</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>-</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>=</span></div><div class="kb-key" style="flex:2;--kc:#1b1d2a"><span>⌫</span></div></div><div class="kb-row"><div class="kb-key kb-wide" style="flex:1.5;--kc:#1b1d2a"><span>tab</span></div><div class="kb-key" style="flex:1;--kc:#9dff3c"><span>Q</span></div><div class="kb-key" style="flex:1;--kc:#ff3b30"><span>W</span></div><div class="kb-key" style="flex:1;--kc:#9dff3c"><span>E</span></div><div class="kb-key" style="flex:1;--kc:#9dff3c"><span>R</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>T</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>Y</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>U</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>I</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>O</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>P</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>[</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>]</span></div><div class="kb-key" style="flex:1.5;--kc:#1b1d2a"><span>\</span></div></div><div class="kb-row"><div class="kb-key kb-wide" style="flex:1.75;--kc:#1b1d2a"><span>caps</span></div><div class="kb-key" style="flex:1;--kc:#ff3b30"><span>A</span></div><div class="kb-key" style="flex:1;--kc:#ff3b30"><span>S</span></div><div class="kb-key" style="flex:1;--kc:#ff3b30"><span>D</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>F</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>G</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>H</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>J</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>K</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>L</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>;</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>'</span></div><div class="kb-key kb-wide" style="flex:2.25;--kc:#1b1d2a"><span>enter</span></div></div><div class="kb-row"><div class="kb-key kb-wide" style="flex:2.25;--kc:#ffb020"><span>shift</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>Z</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>X</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>C</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>V</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>B</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>N</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>M</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>,</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>.</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>/</span></div><div class="kb-key kb-wide" style="flex:1.75;--kc:#ffb020"><span>shift</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>↑</span></div></div><div class="kb-row"><div class="kb-key kb-wide" style="flex:1.25;--kc:#ffb020"><span>ctrl</span></div><div class="kb-key" style="flex:1.25;--kc:#1b1d2a"><span>fn</span></div><div class="kb-key" style="flex:1.25;--kc:#1b1d2a"><span>⊞</span></div><div class="kb-key kb-wide" style="flex:1.25;--kc:#1b1d2a"><span>alt</span></div><div class="kb-key kb-wide" style="flex:4.75;--kc:#ffb020"><span>space</span></div><div class="kb-key kb-wide" style="flex:1.25;--kc:#1b1d2a"><span>alt</span></div><div class="kb-key kb-wide" style="flex:1.25;--kc:#ffb020"><span>ctrl</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>←</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>↓</span></div><div class="kb-key" style="flex:1;--kc:#2de2ff"><span>→</span></div></div></div><div class="kb-num"><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>num</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>/</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>*</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>-</span></div></div><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>7</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>8</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>9</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>+</span></div></div><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>4</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>5</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>6</span></div><div class="kb-key kb-empty" style="flex:1;--kc:#1b1d2a"><span></span></div></div><div class="kb-row"><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>1</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>2</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>3</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>⏎</span></div></div><div class="kb-row"><div class="kb-key" style="flex:2;--kc:#1b1d2a"><span>0</span></div><div class="kb-key" style="flex:1;--kc:#1b1d2a"><span>.</span></div><div class="kb-key kb-empty" style="flex:1;--kc:#1b1d2a"><span></span></div></div></div></div>
+    <div class="zbar">
+      <div style="--c:#ff3b30">Z1 · FF3B30</div><div style="--c:#c8a63a">Z2 · C8A63A</div>
+      <div style="--c:#8fd44a">Z3 · 8FD44A</div><div style="--c:#2de2ff">Z4 · 2DE2FF</div>
+    </div>
+  </div>
+  <div class="card" style="flex:1;display:flex;flex-direction:column">
+    <div class="head"><h3>Como a cor chega no hardware</h3>
+      <span class="hint">o PH315-54 tem 4 zonas físicas — o mapa de teclas é resolvido antes de escrever</span></div>
+    <div class="resolve">
+      <div class="rstep"><b>1 · você pinta</b>
+        <div class="rkeys"><i style="--c:#ff3b30">W</i><i style="--c:#ff3b30">A</i>
+          <i style="--c:#ff3b30">S</i><i style="--c:#ff3b30">D</i>
+          <i style="--c:#9dff3c">Q</i><i style="--c:#ffb020">⇧</i></div></div>
+      <div class="rarrow">→</div>
+      <div class="rstep"><b>2 · média ponderada por zona</b>
+        <div class="rmix"><span style="--c:#ff3b30"></span><span style="--c:#c8a63a"></span>
+          <span style="--c:#8fd44a"></span><span style="--c:#2de2ff"></span></div></div>
+      <div class="rarrow">→</div>
+      <div class="rstep"><b>3 · escrita no driver</b>
+        <div class="rcode mono">write(/dev/acer-gkbbl-static-0)<br>
+          <em>0b0001</em> FF3B30 · <em>0b0010</em> C8A63A<br>
+          <em>0b0100</em> 8FD44A · <em>0b1000</em> 2DE2FF<br>
+          commit → /dev/acer-gkbbl-0</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="rt">
+  <div>
+    <div class="sl2">Cor</div>
+    <div style="height:92px;border-radius:9px;background:
+      linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,#ff3b30);
+      position:relative;border:1px solid rgba(255,255,255,.1)">
+      <div style="position:absolute;top:22%;left:72%;width:15px;height:15px;border-radius:50%;
+        border:2.5px solid #fff;transform:translate(-50%,-50%)"></div></div>
+    <div class="pal">
+      <i style="--c:#ff3b30"></i><i style="--c:#ff6a00"></i><i style="--c:#ffb020"></i>
+      <i style="--c:#ffe100"></i><i style="--c:#9dff3c"></i><i style="--c:#00d4a0"></i>
+      <i style="--c:#2de2ff"></i><i style="--c:#4f7cff"></i><i style="--c:#b14aed"></i>
+    </div>
+  </div>
+  <div>
+    <div class="sl2">Telemetria</div>
+    <div class="kv"><span>Ventoinha CPU</span><b>4290 rpm</b></div>
+    <div class="kv"><span>Ventoinha GPU</span><b>4610 rpm</b></div>
+    <div class="kv warn"><span>CPU</span><b>72 °C</b></div>
+    <div class="kv"><span>GPU</span><b>64 °C</b></div>
+    <svg class="spark" viewBox="0 0 240 52" style="--sc:#ff2d6f">
+<polyline points="0.0,48.0 16.0,46.4 32.0,45.2 48.0,46.2 64.0,43.1 80.0,38.1 96.0,30.6 112.0,24.1 128.0,18.0 144.0,12.3 160.0,8.1 176.0,8.9 192.0,6.4 208.0,4.0 224.0,4.8 240.0,5.4"/>
+<polyline class="fill" points="0,52 0.0,48.0 16.0,46.4 32.0,45.2 48.0,46.2 64.0,43.1 80.0,38.1 96.0,30.6 112.0,24.1 128.0,18.0 144.0,12.3 160.0,8.1 176.0,8.9 192.0,6.4 208.0,4.0 224.0,4.8 240.0,5.4 240,52"/></svg>
+  </div>
+  <div>
+    <div class="sl2">Ventoinhas</div>
+    <div class="fanbtns"><span>Auto</span><span>Silencioso</span><span class="on">Turbo</span></div>
+    <div style="font-size:10.5px;color:rgba(255,255,255,.35);margin-top:8px;line-height:1.55">
+      Turbo liga o overclock e tira a curva do automático.
+      Atalho <span class="kbd" style="font-family:'JetBrains Mono';background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px">Super+T</span>.
+    </div>
+  </div>
+</div>
+
+<div class="tl">
+  <div class="tlh"><div class="pl">▶</div><b>Linha do tempo do efeito</b>
+    <span class="tm">00:01.84 / 00:04.00 · loop</span></div>
+  <div class="lanes" style="position:relative">
+    <div class="pcursor"></div>
+    <div class="lane"><span class="nm">zona 1</span><div class="trk">
+      <div class="blk" style="--c:#ff2d6f;left:0%;width:30%"></div>
+      <div class="blk" style="--c:#b14aed;left:32%;width:26%"></div>
+      <div class="blk" style="--c:#4f7cff;left:60%;width:40%"></div></div></div>
+    <div class="lane"><span class="nm">zona 2</span><div class="trk">
+      <div class="blk" style="--c:#b14aed;left:6%;width:28%"></div>
+      <div class="blk" style="--c:#4f7cff;left:36%;width:30%"></div>
+      <div class="blk" style="--c:#2de2ff;left:68%;width:32%"></div></div></div>
+    <div class="lane"><span class="nm">zona 3</span><div class="trk">
+      <div class="blk" style="--c:#4f7cff;left:12%;width:26%"></div>
+      <div class="blk" style="--c:#2de2ff;left:40%;width:30%"></div>
+      <div class="blk" style="--c:#9dff3c;left:72%;width:28%"></div></div></div>
+    <div class="lane"><span class="nm">zona 4</span><div class="trk">
+      <div class="blk" style="--c:#2de2ff;left:18%;width:28%"></div>
+      <div class="blk" style="--c:#9dff3c;left:48%;width:28%"></div>
+      <div class="blk" style="--c:#ff2d6f;left:78%;width:22%"></div></div></div>
+  </div>
+</div>
+</body></html>
