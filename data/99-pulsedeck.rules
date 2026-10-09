@@ -1,0 +1,7 @@
+# PulseDeck — deixa o turbo gravável sem root.
+#
+# Mesma postura que o próprio módulo facer já adota para /dev/acer-gkbbl-*
+# (0666). No pacote final isso vira polkit + daemon; por enquanto é o caminho
+# direto para o app conseguir escrever.
+ACTION=="add|change", SUBSYSTEM=="platform", KERNEL=="acer-wmi", \
+  RUN+="/bin/sh -c 'chmod 0666 /sys/devices/platform/acer-wmi/turbo 2>/dev/null || true'"
