@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.leandrodukievicz.ControlFanRGB</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>ControlFanRGB</name>
+  <name xml:lang="pt-BR">ControlFanRGB</name>
+
+  <summary>Control the RGB keyboard and cooling of Acer Predator laptops</summary>
+  <summary xml:lang="pt-BR">Controle o teclado RGB e a refrigeração de notebooks Acer Predator</summary>
+
+  <description>
+    <p>
+      ControlFanRGB drives the four-zone RGB keyboard and the cooling of Acer
+      Predator laptops on Linux, covering what the vendor only ships for
+      Windows.
+    </p>
+    <p xml:lang="pt-BR">
+      O ControlFanRGB controla o teclado RGB de quatro zonas e a refrigeração
+      de notebooks Acer Predator no Linux, cobrindo o que o fabricante só
+      entrega no Windows.
+    </p>
+    <ul>
+      <li>Per-zone colour and brightness, plus the six firmware effects</li>
+      <li xml:lang="pt-BR">Cor e brilho por zona, mais os seis efeitos do firmware</li>
+      <li>Software effects the vendor tool does not have: rainbow, CPU load, thermometer and smooth breathing</li>
+      <li xml:lang="pt-BR">Efeitos por software que o programa do fabricante não tem: arco-íris, carga da CPU, termômetro e respiração suave</li>
+      <li>Turbo mode on and off, with live fan RPM and CPU temperature</li>
+      <li xml:lang="pt-BR">Modo turbo, com RPM das ventoinhas e temperatura da CPU ao vivo</li>
+      <li>Key-by-key painting, resolved onto the four hardware zones</li>
+      <li xml:lang="pt-BR">Pintura tecla a tecla, resolvida para as quatro zonas do hardware</li>
+      <li>A system daemon that restores your profile on boot and on resume</li>
+      <li xml:lang="pt-BR">Um daemon de sistema que restaura o perfil no boot e no resume</li>
+    </ul>
+    <p>
+      Turbo mode and fan readings need a patched build of the out-of-tree
+      "facer" kernel module, which the project ships. This is an independent
+      project, not affiliated with Acer.
+    </p>
+    <p xml:lang="pt-BR">
+      O modo turbo e a leitura das ventoinhas exigem uma versão corrigida do
+      módulo de kernel "facer", que acompanha o projeto. Este é um projeto
+      independente, sem relação com a Acer.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.leandrodukievicz.ControlFanRGB.desktop</launchable>
+
+  <developer id="io.github.leandrodukievicz">
+    <name>Leandro Dukievicz</name>
+  </developer>
+
+  <url type="homepage">https://github.com/LeandroDukievicz/ControlFanRGB</url>
+  <url type="bugtracker">https://github.com/LeandroDukievicz/ControlFanRGB/issues</url>
+  <url type="vcs-browser">https://github.com/LeandroDukievicz/ControlFanRGB</url>
+
+  <categories>
+    <category>Settings</category>
+    <category>HardwareSettings</category>
+  </categories>
+
+  <keywords>
+    <keyword>rgb</keyword>
+    <keyword>keyboard</keyword>
+    <keyword>backlight</keyword>
+    <keyword>fan</keyword>
+    <keyword>turbo</keyword>
+    <keyword>predator</keyword>
+    <keyword>acer</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.1.0" date="2026-10-09">
+      <description>
+        <p>First packaged release.</p>
+        <p xml:lang="pt-BR">Primeira versão empacotada.</p>
+      </description>
+    </release>
+  </releases>
+</component>
