@@ -30,6 +30,7 @@ OBJ_PATH = "/io/github/leandrodukievicz/PulseDeck1"
 STATE_DIR = "/var/lib/pulsedeck"
 STATE_PATH = os.path.join(STATE_DIR, "state.json")
 POLL_SECONDS = 2
+MAX_APPLY_RETRIES = 30      # ~15 s esperando o módulo criar os /dev
 
 DEFAULT_STATE = {
     "mode": "zones",                  # zones | firmware | software
@@ -218,8 +219,21 @@ class Daemon:
         return None
 
     # ------------------------------------------------------------- estado ---
-    def _apply_state(self):
+    def _apply_state(self, attempt=0):
+        """Aplica o perfil, insistindo enquanto o hardware não estiver pronto.
+
+        O módulo facer cria /dev/acer-gkbbl-* de forma **assíncrona**: no boot
+        o modprobe do ExecStartPre volta antes dos devices existirem. Sem a
+        reentativa, a primeira aplicação falha e o teclado fica apagado até
+        alguém mexer. (O script acer-rgb original esperava por isso num laço
+        de até 5 s — mesmo motivo.)
+
+        Também cobre o caso de o módulo ser recarregado: os fds antigos ficam
+        inválidos, então fechamos antes de tentar de novo.
+        """
         st = self.state
+        if not Keyboard.available():
+            return self._retry(attempt, "devices do teclado ainda não existem")
         try:
             if st["mode"] == "software" and st["software_effect"]:
                 name = st["software_effect"]
@@ -233,10 +247,22 @@ class Daemon:
                 self.kb.set_zones([tuple(c) for c in st["zones"]],
                                   st["brightness"])
         except (KeyboardUnavailable, OSError) as e:
-            _log(f"falha ao aplicar perfil: {e}")
-            return False
+            return self._retry(attempt, str(e))
+
+        if attempt:
+            _log(f"perfil aplicado na tentativa {attempt + 1}")
         _save_state(st)
         return False            # idle_add/timeout_add: não repetir
+
+    def _retry(self, attempt, why):
+        self.kb.close()                       # fds podem ter ficado inválidos
+        if attempt == 0:
+            _log(f"{why} — tentando de novo")
+        if attempt < MAX_APPLY_RETRIES:
+            GLib.timeout_add(500, self._apply_state, attempt + 1)
+        else:
+            _log(f"desisti de aplicar o perfil: {why}")
+        return False
 
     def _status(self):
         fans = self.sensors.fans() or (0, 0)
