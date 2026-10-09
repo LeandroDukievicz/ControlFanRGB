@@ -27,12 +27,13 @@ original não expõe o turbo nem liga a leitura de ventoinha neste modelo.
   resume, e os efeitos continuando com a janela fechada
 - **Atalhos globais**: `Super+T` turbo, `Super+K` apagar — com notificação
   mostrando o RPM real
+- **Ícone no tray** com turbo, RPM ao vivo, temas e efeitos
+- **Pintura tecla a tecla**, resolvida para as 4 zonas
 
 Ainda não:
 
-- Ícone no tray
-- Pintura tecla a tecla (resolvendo para as 4 zonas)
 - Empacotamento (deb/PPA, snap)
+- Perfil automático por aplicativo
 
 Sobre o OSD: o mockup previa um overlay flutuante, mas o Mutter **não
 implementa o `wlr-layer-shell`**, então um app comum não consegue desenhar
@@ -47,6 +48,7 @@ sudo kernel/instalar.sh          # patch do módulo: turbo + leitura de ventoinh
 sudo modprobe -r facer && sudo modprobe facer
 sudo ./instalar-daemon.sh        # pulsedeckd no systemd + política D-Bus
 ./instalar-atalhos.sh            # Super+T e Super+K (sem sudo)
+./instalar-tray.sh               # ícone de bandeja (sem sudo)
 ```
 
 Cada um tem o par `desinstalar-*`/`reverter.sh`. O `instalar-daemon.sh`
@@ -97,17 +99,26 @@ personalizados, com o comando acima.
 | `pulsedeck/app.py` | Adw.Application e CLI |
 | `pulsedeck/daemon.py` | `pulsedeckd` — serviço de sistema, dono do hardware |
 | `pulsedeck/client.py` | backend D-Bus + fallback direto |
+| `pulsedeck/tray.py` | ícone de bandeja (StatusNotifierItem + dbusmenu) |
+| `pulsedeck/perkey.py` | resolve o mapa tecla-a-tecla para as 4 zonas |
 | `kernel/` | patch do módulo `facer` + instalar/reverter |
 
 ### Arquitetura
 
 ```
-GUI / CLI  ──D-Bus(sistema)──>  pulsedeckd  ──>  facer 1.1 (DKMS)
-                                     │
-                            /dev/acer-gkbbl-*
-                            /sys/.../acer-wmi/turbo
-                            hwmon acer (RPM)
+GUI ─┐
+CLI ─┼─ D-Bus (sistema) ─>  pulsedeckd  ─>  facer 1.1 (DKMS)
+Tray ┘                           │
+                        /dev/acer-gkbbl-*
+                        /sys/.../acer-wmi/turbo
+                        hwmon acer (RPM)
 ```
+
+O tray é um processo próprio da sessão, não parte da janela — um tray que
+morre ao fechar a janela não é um tray. Ele implementa
+`org.kde.StatusNotifierItem` e `com.canonical.dbusmenu` direto no barramento
+de sessão, porque o `AppIndicator3` é GTK-3 e o GObject Introspection não
+permite carregar Gtk 3.0 e Gtk 4.0 no mesmo processo.
 
 O daemon é o dono exclusivo dos devices. Isso resolve a disputa entre
 processos (a GUI chegou a travar a troca do módulo por *device in use*),
@@ -126,3 +137,14 @@ esse tipo de app — está em [`docs/PESQUISA-E-PLANO.md`](docs/PESQUISA-E-PLANO
 Os quatro mockups de layout estão em [`docs/mockups/`](docs/mockups/) (PNG mais
 o HTML que os gerou), e a prova de conceito que originou os efeitos por
 software em [`docs/poc/`](docs/poc/).
+
+## Sobre o nome
+
+`PulseDeck` é provisório. "Predator" e "PredatorSense" são marcas da Acer e
+não podem ser usadas no nome publicado. Renomear o repositório depois é
+barato — o GitHub mantém o redirecionamento.
+
+## Licença
+
+A definir antes da primeira publicação. O módulo de kernel derivado do `facer`
+é GPL-2.0 por herança; o resto do projeto pode ser outra coisa.

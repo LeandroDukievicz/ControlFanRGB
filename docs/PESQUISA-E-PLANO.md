@@ -137,12 +137,17 @@ quer `pkexec` piscando toda hora; (2) a animação por software precisa rodar me
 
 | Fase | Entrega | Por quê primeiro |
 |---|---|---|
-| **0** | Fork do `facer` → `turbo` em sysfs + quirk PH315-54 com `predator_v4` | destrava turbo e RPM; sem isso nada do resto existe |
-| **1** | `pulsedeckd` + CLI nova (substitui o `acer-rgb`) | separa privilégio de UI; já dá pra usar no dia a dia |
-| **2** | GUI com zonas, temas, brilho, turbo e RPM | é o MVP publicável |
-| **3** | Efeitos por software + pintar tecla a tecla | é o diferencial |
+| **0** ✅ | Fork do `facer` → `turbo` em sysfs + quirk PH315-54 com `predator_v4` | destrava turbo e RPM; sem isso nada do resto existe |
+| **1** ✅ | `pulsedeckd` + CLI nova (substitui o `acer-rgb`) | separa privilégio de UI; já dá pra usar no dia a dia |
+| **2** ✅ | GUI com zonas, temas, brilho, turbo e RPM | é o MVP publicável |
+| **3** ✅ | Efeitos por software + pintar tecla a tecla + tray | é o diferencial |
 | **4** | Empacotar: deb/PPA → snap classic → flatpak | distribuição |
 | **5** | Mandar PR do patch do módulo pro projeto original | devolve pra comunidade, e tira o fork das suas costas |
+
+> **Status em 09/10/2026:** fases 0 a 3 concluídas e em uso nesta máquina.
+> O OSD flutuante previsto no mockup C foi substituído por notificação do
+> sistema: o Mutter não implementa `wlr-layer-shell` e um app comum não
+> consegue desenhar sobre a tela no GNOME.
 
 ---
 
