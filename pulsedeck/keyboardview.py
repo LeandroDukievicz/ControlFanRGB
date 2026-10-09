@@ -1,7 +1,14 @@
-"""Pré-visualização do teclado: desenha as teclas coloridas pela zona.
+"""Pré-visualização do teclado — e, no modo de pintura, a superfície de edição.
 
-É só um Gtk.DrawingArea com cairo — leve o bastante pra redesenhar a 30 fps
-enquanto um efeito por software está rodando.
+Dois modos:
+
+* `zones`  — cada tecla recebe a cor da zona física em que cai.
+* `perkey` — cada tecla tem a própria cor e é clicável.
+
+O modo per-key existe mesmo o hardware tendo só 4 zonas: é mais natural pintar
+"WASD de vermelho" do que calcular a cor média da primeira zona. Quem faz essa
+conta é o `perkey.resolve_zones()`, e o resultado aparece na faixa abaixo do
+teclado para não haver surpresa.
 """
 import gi
 
@@ -31,6 +38,9 @@ NUM_ROWS = [
     [("0", 2), (".", 1), (None, 1)],
 ]
 MAIN_FRAC = 0.785          # fatia da largura que o bloco principal ocupa
+NUM_UNITS = 4
+
+OFF_COLOR = (16, 17, 24)
 
 
 def zone_of(center):
@@ -38,15 +48,50 @@ def zone_of(center):
     return min(3, int(center * 4))
 
 
+def _build_keys():
+    """Tabela estática das teclas. `id` é estável, então pode ir pro disco."""
+    keys = {}
+    for r, row in enumerate(MAIN_ROWS):
+        units = sum(w for _, w in row)
+        cum = 0.0
+        for c, (label, w) in enumerate(row):
+            center = MAIN_FRAC * (cum + w / 2) / units
+            keys[f"m{r}.{c}"] = {"label": label, "zone": zone_of(center)}
+            cum += w
+    for r, row in enumerate(NUM_ROWS):
+        cum = 0.0
+        for c, (label, w) in enumerate(row):
+            center = MAIN_FRAC + (1 - MAIN_FRAC) * (cum + w / 2) / NUM_UNITS
+            if label is not None:
+                keys[f"n{r}.{c}"] = {"label": label, "zone": zone_of(center)}
+            cum += w
+    return keys
+
+
+KEYS = _build_keys()
+
+
 class KeyboardView(Gtk.DrawingArea):
-    """Mostra as 4 zonas. `colors` são 4 tuplas (r,g,b) 0-255."""
+    """`colors` são 4 tuplas (r,g,b); `key_colors` é {id_da_tecla: (r,g,b)}."""
 
     def __init__(self):
         super().__init__()
         self.colors = [(60, 60, 70)] * 4
+        self.key_colors = {}
         self.brightness = 100
+        self.mode = "zones"
+        self.on_key_paint = None          # callback(id_da_tecla)
+        self._rects = {}
         self.set_content_height(188)
         self.set_draw_func(self._draw)
+
+        click = Gtk.GestureClick()
+        click.connect("pressed", self._on_pressed)
+        self.add_controller(click)
+        drag = Gtk.GestureDrag()
+        drag.connect("drag-begin", self._on_drag_begin)
+        drag.connect("drag-update", self._on_drag_update)
+        self.add_controller(drag)
 
     def update(self, colors, brightness=None):
         self.colors = list(colors)[:4]
@@ -54,15 +99,44 @@ class KeyboardView(Gtk.DrawingArea):
             self.brightness = brightness
         self.queue_draw()
 
+    def set_paint_mode(self, on, key_colors=None):
+        self.mode = "perkey" if on else "zones"
+        if key_colors is not None:
+            self.key_colors = key_colors
+        self.set_cursor_from_name("crosshair" if on else None)
+        self.queue_draw()
+
+    # ------------------------------------------------------------ pintura --
+    def _on_pressed(self, _g, _n, x, y):
+        self._paint_at(x, y)
+
+    def _on_drag_begin(self, _g, x, y):
+        self._drag_origin = (x, y)
+
+    def _on_drag_update(self, _g, dx, dy):
+        ox, oy = getattr(self, "_drag_origin", (0, 0))
+        self._paint_at(ox + dx, oy + dy)
+
+    def _paint_at(self, x, y):
+        if self.mode != "perkey" or self.on_key_paint is None:
+            return
+        for key_id, (kx, ky, kw, kh) in self._rects.items():
+            if kx <= x <= kx + kw and ky <= y <= ky + kh:
+                self.on_key_paint(key_id)
+                return
+
+    def _color_for(self, key_id, zone):
+        if self.mode == "perkey":
+            return self.key_colors.get(key_id, OFF_COLOR)
+        return self.colors[zone]
+
     # ------------------------------------------------------------- desenho --
     def _draw(self, _area, cr, width, height):
-        pad = 10
-        gap_blocks = 9
+        pad, gap_blocks, gap = 10, 9, 4
         inner_w = width - pad * 2 - gap_blocks
         main_w = inner_w * MAIN_FRAC
         num_w = inner_w - main_w
 
-        gap = 4
         rows = len(MAIN_ROWS)
         key_h = min((height - pad * 2 - gap * (rows - 1)) / rows,
                     main_w / 15.5 * 0.92)
@@ -73,29 +147,29 @@ class KeyboardView(Gtk.DrawingArea):
         cr.set_source_rgb(0.04, 0.045, 0.07)
         cr.fill()
 
-        self._draw_block(cr, MAIN_ROWS, pad, top, main_w, key_h, gap, 0.0, MAIN_FRAC)
-        self._draw_block(cr, NUM_ROWS, pad + main_w + gap_blocks, top, num_w,
-                         key_h, gap, MAIN_FRAC, 1 - MAIN_FRAC, rows_units=4)
+        self._rects = {}
+        self._draw_block(cr, MAIN_ROWS, "m", pad, top, main_w, key_h, gap, None)
+        self._draw_block(cr, NUM_ROWS, "n", pad + main_w + gap_blocks, top,
+                         num_w, key_h, gap, NUM_UNITS)
 
-    def _draw_block(self, cr, rows, x0, y0, block_w, key_h, gap,
-                    frac_start, frac_span, rows_units=None):
+    def _draw_block(self, cr, rows, prefix, x0, y0, block_w, key_h, gap,
+                    fixed_units):
         dim = max(0.18, self.brightness / 100.0)
         for r, row in enumerate(rows):
-            units = rows_units or sum(w for _, w in row)
+            units = fixed_units or sum(w for _, w in row)
             unit_w = (block_w - gap * (len(row) - 1)) / units
-            x = x0
-            cum = 0.0
-            y = y0 + r * (key_h + gap)
-            for label, w in row:
+            x, y = x0, y0 + r * (key_h + gap)
+            for c, (label, w) in enumerate(row):
                 kw = unit_w * w
                 if label is not None:
-                    center = frac_start + frac_span * (cum + w / 2) / units
+                    key_id = f"{prefix}{r}.{c}"
+                    self._rects[key_id] = (x, y, kw, key_h)
+                    zone = KEYS[key_id]["zone"]
                     cr.save()
                     self._draw_key(cr, x, y, kw, key_h,
-                                   self.colors[zone_of(center)], dim, label)
+                                   self._color_for(key_id, zone), dim, label)
                     cr.restore()
                 x += kw + gap
-                cum += w
 
     def _draw_key(self, cr, x, y, w, h, color, dim, label):
         r, g, b = (c / 255.0 for c in color)
