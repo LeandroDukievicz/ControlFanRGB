@@ -1,0 +1,89 @@
+--- a/src/facer.c
++++ b/src/facer.c
+@@ -30,6 +30,7 @@
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+ 
+ #include <linux/kernel.h>
++#include <linux/kstrtox.h>
+ #include <linux/module.h>
+ #include <linux/init.h>
+ #include <linux/types.h>
+@@ -578,6 +579,13 @@
+ 	.turbo = 1,
+ 	.cpu_fans = 1,
+ 	.gpu_fans = 1,
++	/*
++	 * PulseDeck: o PH315-54 responde aos comandos de leitura de ventoinha do
++	 * Predator Sense v4 (testado: CPU 3061 / GPU 3488 rpm), mas a quirk nao
++	 * ligava a capability. Com predator_v4 aqui, FAN_SPEED_READ e
++	 * PLATFORM_PROFILE entram junto com o turbo, em vez de substitui-lo.
++	 */
++	.predator_v4 = 1,
+ };
+ 
+ static struct quirk_entry quirk_acer_predator_ph315_55 = {
+@@ -3711,10 +3719,64 @@
+ 		set_u32(LED_OFF, ACER_CAP_MAILLED);
+ }
+ 
++/*
++ * PulseDeck: interface de userspace para o turbo.
++ *
++ * O acer_toggle_turbo() original so era alcancavel pelo handler da tecla
++ * fisica (WMID_GAMING_TURBO_KEY_EVENT / key_num 0x4). Sem isso aqui nao ha
++ * como um aplicativo ligar o turbo nem saber em que estado ele esta.
++ *
++ *   /sys/devices/platform/acer-wmi/turbo   0 = desligado, 1 = ligado
++ */
++static ssize_t turbo_show(struct device *dev,
++			  struct device_attribute *attr, char *buf)
++{
++	return sysfs_emit(buf, "%d\n", turbo_state);
++}
++
++static ssize_t turbo_store(struct device *dev, struct device_attribute *attr,
++			   const char *buf, size_t count)
++{
++	bool on;
++	int err;
++
++	err = kstrtobool(buf, &on);
++	if (err)
++		return err;
++
++	if (on != !!turbo_state)
++		acer_toggle_turbo();
++
++	return count;
++}
++static DEVICE_ATTR_RW(turbo);
++
++static struct attribute *acer_gaming_attrs[] = {
++	&dev_attr_turbo.attr,
++	NULL,
++};
++
++static umode_t acer_gaming_attr_visible(struct kobject *kobj,
++					struct attribute *attr, int n)
++{
++	if (attr == &dev_attr_turbo.attr)
++		return has_cap(ACER_CAP_TURBO_OC) ? attr->mode : 0;
++
++	return attr->mode;
++}
++
++static const struct attribute_group acer_gaming_attr_group = {
++	.attrs = acer_gaming_attrs,
++	.is_visible = acer_gaming_attr_visible,
++};
++
++__ATTRIBUTE_GROUPS(acer_gaming_attr);
++
+ static struct platform_driver acer_platform_driver = {
+ 		.driver = {
+ 				.name = "acer-wmi",
+ 				.pm = &acer_pm,
++				.dev_groups = acer_gaming_attr_groups,
+ 		},
+ 		.probe = acer_platform_probe,
+ 		#if RTLNX_VER_MIN(6, 14, 0)
