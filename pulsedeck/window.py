@@ -11,7 +11,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, GLib, Gdk, Gtk  # noqa: E402
 
-from . import config, effects, themes
+from . import config, effects, perkey, themes
 from .client import get_backend
 from .hardware import (MODE_NAMES, MODES_WITH_COLOR, STATIC,
                        Keyboard, KeyboardUnavailable, Sensors)
@@ -19,6 +19,7 @@ from .keyboardview import KeyboardView
 
 PAGES = [
     ("lighting", "Iluminação", "display-brightness-symbolic"),
+    ("perkey", "Tecla a tecla", "document-edit-symbolic"),
     ("themes", "Temas", "applications-graphics-symbolic"),
     ("effects", "Efeitos", "media-playback-start-symbolic"),
     ("cooling", "Resfriamento", "temperature-symbolic"),
@@ -36,6 +37,8 @@ class Window(Adw.ApplicationWindow):
         self.sensors = Sensors()        # leitura local, só para a prévia
         self._applying = False          # evita loop ao popular os widgets
         self._preview_effect = None
+        self.key_colors = {k: tuple(v) for k, v in self.cfg["key_colors"].items()}
+        self._paint_apply_id = 0
         self._preview_t0 = 0.0
         self._preview_id = 0
 
@@ -75,13 +78,21 @@ class Window(Adw.ApplicationWindow):
         return Adw.NavigationPage(title="PulseDeck", child=tv)
 
     def _on_page_selected(self, _list, row):
-        if row is not None:
-            self.stack.set_visible_child_name(row.page_name)
-            self.content_title.set_title(row.get_title())
+        if row is None:
+            return
+        self.stack.set_visible_child_name(row.page_name)
+        self.content_title.set_title(row.get_title())
+        painting = row.page_name == "perkey"
+        self.preview.set_paint_mode(painting, self.key_colors)
+        if painting:
+            self._refresh_zone_strip()
+        else:
+            self._refresh_preview()
 
     # ------------------------------------------------------------ conteúdo --
     def _build_content(self):
         self.preview = KeyboardView()
+        self.preview.on_key_paint = self._on_key_paint
         self.preview.set_margin_start(14)
         self.preview.set_margin_end(14)
         self.preview.set_margin_top(12)
@@ -94,6 +105,7 @@ class Window(Adw.ApplicationWindow):
 
         self.stack = Adw.ViewStack(vexpand=True)
         self.stack.add_named(self._page_lighting(), "lighting")
+        self.stack.add_named(self._page_perkey(), "perkey")
         self.stack.add_named(self._page_themes(), "themes")
         self.stack.add_named(self._page_effects(), "effects")
         self.stack.add_named(self._page_cooling(), "cooling")
@@ -149,6 +161,133 @@ class Window(Adw.ApplicationWindow):
         g2.add(row)
         page.add(g2)
         return page
+
+    def _page_perkey(self):
+        """Pintura tecla a tecla, resolvida para as 4 zonas antes de escrever."""
+        page = Adw.PreferencesPage()
+
+        g = Adw.PreferencesGroup(
+            title="Pincel",
+            description="Clique ou arraste sobre o teclado acima. O hardware "
+                        "tem 4 zonas, então a cor de cada zona é a média das "
+                        "teclas que você pintou nela.")
+        row = Adw.ActionRow(title="Cor", subtitle="#FF3B30")
+        self.brush_sub = row
+        self.brush = Gtk.ColorDialogButton(
+            dialog=Gtk.ColorDialog(with_alpha=False), valign=Gtk.Align.CENTER)
+        self.brush.set_rgba(_rgba((255, 59, 48)))
+        self.brush.connect("notify::rgba", lambda *_: self.brush_sub.set_subtitle(
+            _hexstr(_from_rgba(self.brush.get_rgba()))))
+        row.add_suffix(self.brush)
+        g.add(row)
+
+        palette = Gtk.Box(spacing=6, margin_top=4, margin_bottom=4)
+        for hexcode in ("ff3b30", "ff6a00", "ffb020", "ffe100", "9dff3c",
+                        "00d4a0", "2de2ff", "4f7cff", "b14aed", "ffffff"):
+            color = tuple(int(hexcode[i:i + 2], 16) for i in (0, 2, 4))
+            sw = Gtk.Box(hexpand=True, height_request=30)
+            sw.add_css_class("pd-sw-round")
+            _set_bg(sw, color)
+            btn = Gtk.Button(child=sw, css_classes=["flat"])
+            btn.connect("clicked", self._on_palette, color)
+            palette.append(btn)
+        prow = Adw.ActionRow(title="Paleta")
+        prow.add_suffix(palette)
+        g.add(prow)
+
+        self.eraser = Adw.SwitchRow(
+            title="Borracha",
+            subtitle="Clicar apaga a tecla em vez de pintar")
+        g.add(self.eraser)
+        page.add(g)
+
+        g2 = Adw.PreferencesGroup(
+            title="Como vai sair no teclado",
+            description="O que o driver realmente recebe")
+        self.zone_strip = Gtk.Box(spacing=6, margin_top=6, margin_bottom=6,
+                                  homogeneous=True)
+        self.zone_boxes, self.zone_labels = [], []
+        for i in range(4):
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            sw = Gtk.Box(height_request=30)
+            sw.add_css_class("pd-sw-round")
+            lbl = Gtk.Label(label=f"Zona {i + 1}", css_classes=["caption"])
+            box.append(sw)
+            box.append(lbl)
+            self.zone_boxes.append(sw)
+            self.zone_labels.append(lbl)
+            self.zone_strip.append(box)
+        srow = Adw.ActionRow()
+        srow.set_child(self.zone_strip)
+        g2.add(srow)
+        page.add(g2)
+
+        g3 = Adw.PreferencesGroup()
+        clear = Adw.ButtonRow(title="Limpar tudo")
+        clear.connect("activated", lambda *_: self._perkey_clear())
+        g3.add(clear)
+        fill = Adw.ButtonRow(title="Pintar todas as teclas com a cor do pincel")
+        fill.connect("activated", lambda *_: self._perkey_fill())
+        g3.add(fill)
+        page.add(g3)
+        return page
+
+    def _on_palette(self, _btn, color):
+        self.brush.set_rgba(_rgba(color))
+        self.eraser.set_active(False)
+
+    def _brush_color(self):
+        return _from_rgba(self.brush.get_rgba())
+
+    def _on_key_paint(self, key_id):
+        if self.eraser.get_active():
+            self.key_colors.pop(key_id, None)
+        else:
+            self.key_colors[key_id] = self._brush_color()
+        self.preview.key_colors = self.key_colors
+        self.preview.queue_draw()
+        self._refresh_zone_strip()
+        # agrupa cliques seguidos numa escrita só
+        if self._paint_apply_id:
+            GLib.source_remove(self._paint_apply_id)
+        self._paint_apply_id = GLib.timeout_add(180, self._apply_perkey)
+
+    def _apply_perkey(self):
+        self._paint_apply_id = 0
+        self.cfg["key_colors"] = {k: list(v) for k, v in self.key_colors.items()}
+        self.cfg["zones"] = perkey.resolve_zones(self.key_colors)
+        self.cfg["mode"] = "zones"
+        self._applying = True
+        for i, btn in enumerate(self.zone_buttons):
+            btn.set_rgba(_rgba(self.cfg["zones"][i]))
+        self._applying = False
+        self._stop_engine()
+        self._apply_current(toast=False)
+        return False
+
+    def _refresh_zone_strip(self):
+        zones = perkey.resolve_zones(self.key_colors)
+        counts = perkey.zone_counts(self.key_colors)
+        for i, (box, lbl) in enumerate(zip(self.zone_boxes, self.zone_labels)):
+            _set_bg(box, zones[i])
+            n = counts[i]
+            lbl.set_label(f"{_hexstr(zones[i])} · {n} tecla"
+                          + ("s" if n != 1 else ""))
+
+    def _perkey_clear(self):
+        self.key_colors = {}
+        self.preview.key_colors = self.key_colors
+        self.preview.queue_draw()
+        self._refresh_zone_strip()
+        self._apply_perkey()
+        self._toast("Teclas limpas")
+
+    def _perkey_fill(self):
+        self.key_colors = perkey.fill_all(self._brush_color())
+        self.preview.key_colors = self.key_colors
+        self.preview.queue_draw()
+        self._refresh_zone_strip()
+        self._apply_perkey()
 
     def _page_themes(self):
         page = Adw.PreferencesPage()

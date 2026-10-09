@@ -16,6 +16,7 @@ DEFAULT = {
     "brightness": 100,
     "color": [45, 226, 255],
     "software_effect": "Arco-íris",
+    "key_colors": {},
     "apply_on_start": True,
 }
 
@@ -28,6 +29,7 @@ def load():
     except (OSError, ValueError):
         pass
     cfg["zones"] = [tuple(c) for c in cfg["zones"]]
+    cfg["key_colors"] = {k: tuple(v) for k, v in cfg.get("key_colors", {}).items()}
     cfg["color"] = tuple(cfg["color"])
     return cfg
 
@@ -36,6 +38,7 @@ def save(cfg):
     os.makedirs(DIR, exist_ok=True)
     serializable = dict(cfg)
     serializable["zones"] = [list(c) for c in cfg["zones"]]
+    serializable["key_colors"] = {k: list(v) for k, v in cfg["key_colors"].items()}
     serializable["color"] = list(cfg["color"])
     tmp = PATH + ".tmp"
     with open(tmp, "w") as f:

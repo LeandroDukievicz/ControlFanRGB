@@ -16,6 +16,7 @@ APP_ID = "io.github.leandrodukievicz.PulseDeck"
 CSS = """
 .pd-sw:first-child { border-radius: 8px 0 0 8px; }
 .pd-sw:last-child  { border-radius: 0 8px 8px 0; }
+.pd-sw-round       { border-radius: 7px; }
 """
 
 
