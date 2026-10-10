@@ -120,7 +120,9 @@ systemctl --user enable --now controlfanrgb-tray.service
 
 Desinstala com `./desinstalar.sh` (que chama `ninja -C build uninstall`), e o
 patch do módulo reverte com `sudo kernel/reverter.sh`. O `instalar.sh` desativa
-o `acer-rgb.service` antigo, que fazia o mesmo trabalho de boot/resume.
+o `acer-rgb.service` antigo, que fazia o mesmo trabalho de boot/resume. Ao
+atualizar uma instalação existente, ele reinicia daemon e tray para usar o
+código novo.
 
 ### Onde as coisas ficam
 

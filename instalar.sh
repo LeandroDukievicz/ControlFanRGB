@@ -24,6 +24,9 @@ for unit in acer-rgb.service acer-rgb-resume.service; do
 done
 
 sudo systemctl enable --now controlfanrgbd.service
+sudo systemctl restart controlfanrgbd.service
+systemctl --user daemon-reload
 systemctl --user enable --now controlfanrgb-tray.service
+systemctl --user restart controlfanrgb-tray.service
 sleep 2
 systemctl --no-pager --lines=5 status controlfanrgbd.service || true

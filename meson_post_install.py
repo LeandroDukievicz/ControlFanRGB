@@ -15,7 +15,6 @@ if os.environ.get("DESTDIR"):
 for cmd in (
     ["gtk-update-icon-cache", "-qtf", "/usr/share/icons/hicolor"],
     ["systemctl", "daemon-reload"],
-    ["systemctl", "--global", "daemon-reload"],
     ["udevadm", "control", "--reload-rules"],
 ):
     subprocess.call(cmd, stderr=subprocess.DEVNULL)
