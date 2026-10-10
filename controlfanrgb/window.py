@@ -612,6 +612,8 @@ class Window(Adw.ApplicationWindow):
     def _tick_preview(self):
         if self._preview_effect is None:
             return False
+        if not self.get_mapped():
+            return True
         t = time.perf_counter() - self._preview_t0
         self.preview.update(self._preview_effect.frame(t, self.sensors),
                             self.cfg["brightness"])
@@ -734,6 +736,8 @@ class Window(Adw.ApplicationWindow):
             self.preview.update(self.cfg["zones"], self.cfg["brightness"])
 
     def _tick_sensors(self):
+        if not self.get_mapped():
+            return True
         try:
             st = self.backend.status()
         except Exception:  # noqa: BLE001  (daemon reiniciando)
