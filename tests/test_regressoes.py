@@ -226,6 +226,71 @@ def test_engine_stop_sem_start_nao_quebra():
     assert motor.running is False
 
 
+# --------------------------------------------- interruptor de energia ----
+def test_set_power_state_nao_dispara_o_proprio_handler():
+    """O botão de power era de mão única: só apagava. Virou interruptor, e aí
+    surge o risco de laço — `_turn_on` chama `_apply_current`, que sincroniza
+    o botão, que dispararia `_on_power` de novo."""
+    from controlfanrgb.window import Window
+
+    disparos = []
+
+    class BotaoFalso:
+        def __init__(self):
+            self._ativo = False
+            self.bloqueado = False
+            self.tooltip = None
+
+        def get_active(self):
+            return self._ativo
+
+        def set_active(self, v):
+            self._ativo = v
+            if not self.bloqueado:
+                disparos.append(v)
+
+        def handler_block(self, _h):
+            self.bloqueado = True
+
+        def handler_unblock(self, _h):
+            self.bloqueado = False
+
+        def set_tooltip_text(self, t):
+            self.tooltip = t
+
+    w = object.__new__(Window)
+    w.power_btn = BotaoFalso()
+    w._power_handler = 1
+
+    w._set_power_state(True)
+    assert w.power_btn.get_active() is True
+    assert w.power_btn.tooltip == "Acender o teclado"
+
+    w._set_power_state(False)
+    assert w.power_btn.get_active() is False
+    assert w.power_btn.tooltip == "Apagar o teclado"
+
+    assert disparos == [], "sincronizar o botão disparou o handler — vira laço"
+
+
+def test_set_power_state_e_idempotente():
+    from controlfanrgb.window import Window
+
+    class BotaoFalso:
+        def __init__(self): self.escritas = 0; self._a = False
+        def get_active(self): return self._a
+        def set_active(self, v): self._a = v; self.escritas += 1
+        def handler_block(self, _h): pass
+        def handler_unblock(self, _h): pass
+        def set_tooltip_text(self, t): pass
+
+    w = object.__new__(Window)
+    w.power_btn = BotaoFalso()
+    w._power_handler = 1
+    w._set_power_state(False)      # já está nesse estado
+    assert w.power_btn.escritas == 0
+
+
 # ------------------------------------------- o efeito nunca fica preto ----
 def test_musica_nunca_renderiza_preto_sem_audio():
     """Relatado como "o teclado apaga sozinho": sem som o efeito caía para

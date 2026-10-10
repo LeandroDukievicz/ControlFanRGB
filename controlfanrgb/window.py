@@ -118,10 +118,13 @@ class Window(Adw.ApplicationWindow):
 
         self.content_title = Adw.WindowTitle(title="Iluminação")
         header = Adw.HeaderBar(title_widget=self.content_title)
-        off = Gtk.Button(icon_name="system-shutdown-symbolic",
-                         tooltip_text="Apagar o teclado")
-        off.connect("clicked", lambda *_: self._turn_off())
-        header.pack_end(off)
+        # Interruptor, não botão de mão única: antes ele só apagava, e para
+        # reacender era preciso ir aplicar um tema ou mexer numa cor.
+        self.power_btn = Gtk.ToggleButton(
+            icon_name="system-shutdown-symbolic",
+            tooltip_text="Apagar o teclado")
+        self._power_handler = self.power_btn.connect("toggled", self._on_power)
+        header.pack_end(self.power_btn)
 
         tv = Adw.ToolbarView()
         tv.add_top_bar(header)
@@ -483,6 +486,7 @@ class Window(Adw.ApplicationWindow):
             self._toast(str(e))
             return
         self._start_preview(type(inst)())
+        self._set_power_state(False)     # efeito ativo também é "aceso"
         self.cfg["mode"] = "software"
         self.cfg["software_effect"] = inst.nome
         config.save(self.cfg)
@@ -606,7 +610,30 @@ class Window(Adw.ApplicationWindow):
             return False
         config.save(self.cfg)
         self._refresh_preview()
+        self._set_power_state(False)     # acendeu: o interruptor volta
         return False
+
+    def _on_power(self, btn):
+        if btn.get_active():
+            self._turn_off()
+        else:
+            self._turn_on()
+
+    def _set_power_state(self, apagado):
+        """Sincroniza o botão sem disparar o handler.
+
+        Sem o bloqueio isto entraria em laço: `_turn_on` chama
+        `_apply_current`, que chama este método, que mexeria no botão e
+        dispararia `_on_power` outra vez.
+        """
+        btn = getattr(self, "power_btn", None)
+        if btn is None or btn.get_active() == apagado:
+            return
+        btn.handler_block(self._power_handler)
+        btn.set_active(apagado)
+        btn.handler_unblock(self._power_handler)
+        btn.set_tooltip_text("Acender o teclado" if apagado
+                             else "Apagar o teclado")
 
     def _turn_off(self):
         self._stop_engine()
@@ -614,9 +641,26 @@ class Window(Adw.ApplicationWindow):
             self.backend.off()
         except Exception as e:  # noqa: BLE001
             self._toast(f"Falhou: {e}")
+            self._set_power_state(False)
             return
         self.preview.update(self.cfg["zones"], 0)
+        self.power_btn.set_tooltip_text("Acender o teclado")
         self._toast("Teclado apagado")
+
+    def _turn_on(self):
+        """Devolve o teclado ao que ele estava fazendo antes de apagar.
+
+        Se havia um efeito por software, ele volta a rodar; senão vale o
+        perfil de cores ou o efeito de firmware.
+        """
+        nome = self.cfg.get("software_effect") or ""
+        if self.cfg.get("mode") == "software" and nome in self.effect_rows:
+            _row, btn, inst = self.effect_rows[nome]
+            self._on_software_effect(btn, inst)
+            return
+        self._apply_current(toast=False)
+        self.power_btn.set_tooltip_text("Apagar o teclado")
+        self._toast("Teclado aceso")
 
     def _refresh_preview(self):
         if self.cfg["mode"] == "firmware" and self.cfg["firmware_mode"] != STATIC:
