@@ -225,7 +225,7 @@ SOFTWARE_EFFECTS = [Rainbow, Matrix, Music, CpuLoad, Thermometer, Breathing]
 class Engine:
     """Roda um efeito numa thread. Só um por vez."""
 
-    def __init__(self, keyboard, sensors, on_frame=None):
+    def __init__(self, keyboard, sensors, on_frame=None, on_error=None):
         self._kb = keyboard
         self._sensors = sensors
         self._on_frame = on_frame
@@ -235,6 +235,9 @@ class Engine:
         self._brightness = 100
         self.current = None
         self.last_warning = None
+        self.last_error = None
+        self.died_at = None
+        self._on_error = on_error
 
     @property
     def running(self):
@@ -288,8 +291,16 @@ class Engine:
                     if stop.is_set():
                         break
                     self._kb.set_zones(colors, self._brightness)
-            except OSError:
-                break          # device sumiu (módulo descarregado) — sai limpo
+            except OSError as e:
+                # Antes isto era um `break` mudo. Uma escrita que falhasse
+                # matava a thread do efeito sem deixar rastro, e o teclado
+                # ficava congelado no último quadro — sintoma "acende e depois
+                # apaga sozinho" sem nada no log para investigar.
+                self.last_error = f"escrita falhou: {e!r}"
+                self.died_at = time.time()
+                if self._on_error:
+                    self._on_error(e)
+                break
             if self._on_frame:
                 self._on_frame(colors)
             stop.wait(1 / FPS)

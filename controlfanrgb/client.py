@@ -158,6 +158,8 @@ class LocalBackend:
             "idle_blank": self._idle_blank,
             "idle_timeout": self._idle_timeout,
             "idle_active": self._idle_active,
+            "engine_running": self.engine.running,
+            "engine_error": self.engine.last_error or "",
             "audio_fresh": effects.AUDIO.fresh,
             "audio_level": effects.AUDIO.level,
             "audio_bands": list(effects.AUDIO.bands),

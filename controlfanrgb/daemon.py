@@ -113,7 +113,8 @@ class Daemon:
         self.kb = Keyboard()
         self.sensors = Sensors()
         self.state = _load_state()
-        self.engine = effects.Engine(self.kb, self.sensors)
+        self.engine = effects.Engine(self.kb, self.sensors,
+                                     on_error=self._on_engine_error)
         self._effects = {cls().nome: cls for cls in effects.SOFTWARE_EFFECTS}
         self._last_fans = None
         self._last_turbo = None
@@ -278,6 +279,10 @@ class Daemon:
             raise ValueError(f"método desconhecido: {method}")
         return None
 
+    def _on_engine_error(self, erro):
+        """A thread do efeito morreu. Chamado da thread dela, não da loop."""
+        _log(f"motor de efeitos parou: {erro!r}")
+
     # -------------------------------------------------------- inatividade ---
     def _set_idle(self, idle):
         """Apaga ou reacende por inatividade da sessão.
@@ -390,6 +395,12 @@ class Daemon:
             "idle_timeout": GLib.Variant(
                 "u", int(self.state.get("idle_timeout", 120))),
             "idle_active": GLib.Variant("b", self._idle_active),
+            # Diferença importante para diagnóstico: `effect` é o que o estado
+            # diz que deveria estar rodando; `engine_running` é se a thread
+            # está de fato viva. Divergência entre os dois é o bug.
+            "engine_running": GLib.Variant("b", self.engine.running),
+            "engine_error": GLib.Variant(
+                "s", self.engine.last_error or ""),
             "audio_fresh": GLib.Variant("b", effects.AUDIO.fresh),
             "audio_level": GLib.Variant("d", effects.AUDIO.level),
             "audio_bands": GLib.Variant("ad", list(effects.AUDIO.bands)),

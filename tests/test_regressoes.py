@@ -526,6 +526,38 @@ def test_set_power_state_e_idempotente():
     assert w.power_btn.escritas == 0
 
 
+# ------------------------------------------ o motor não morre calado ------
+def test_engine_relata_a_morte_em_vez_de_sumir():
+    """`except OSError: break` mudo escondia a thread do efeito morrendo: o
+    teclado congelava no último quadro e não havia nada no log. Sintoma
+    relatado como "acende e depois apaga sozinho"."""
+    avisos = []
+
+    class TecladoQueFalha:
+        def __init__(self): self.n = 0
+        def set_zones(self, cores, brilho):
+            self.n += 1
+            if self.n > 2:
+                raise OSError(5, "Input/output error")
+
+    class EfeitoSimples:
+        nome = "simples"
+        def frame(self, t, sensors): return [(10, 20, 30)] * 4
+
+    motor = effects.Engine(TecladoQueFalha(), None,
+                           on_error=lambda e: avisos.append(e))
+    motor.start(EfeitoSimples(), 100)
+    for _ in range(60):
+        if not motor.running:
+            break
+        time.sleep(0.05)
+
+    assert motor.running is False, "a thread deveria ter saído"
+    assert avisos, "a morte passou em silêncio"
+    assert motor.last_error and "Input/output" in motor.last_error
+    assert motor.died_at is not None
+
+
 # ------------------------------------------- o efeito nunca fica preto ----
 def test_musica_nunca_renderiza_preto_sem_audio():
     """Relatado como "o teclado apaga sozinho": sem som o efeito caía para
