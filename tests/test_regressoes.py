@@ -343,6 +343,51 @@ def test_off_preserva_perfil_e_apply_profile_reacende():
     assert obj._powered and aplicados == [True]
 
 
+def test_gui_reaplica_efeito_sem_trocar_por_zonas(monkeypatch):
+    from controlfanrgb import window
+
+    chamadas = []
+    class Backend:
+        def start_effect(self, name): chamadas.append(("effect", name))
+        def set_zones(self, *args): chamadas.append(("zones", args))
+    class Button:
+        def set_label(self, value): pass
+        def remove_css_class(self, value): pass
+        def add_css_class(self, value): pass
+
+    w = types.SimpleNamespace(
+        cfg={"mode": "software", "software_effect": "Música"},
+        backend=Backend(), effect_rows={"Música": (None, Button(), effects.Music())},
+        _preview_effect=effects.Music(),
+        _refresh_preview=lambda: None, _set_power_state=lambda value: None,
+        _toast=lambda msg: None)
+    monkeypatch.setattr(window.config, "save", lambda cfg: None)
+    assert window.Window._apply_current(w) is False
+    assert chamadas == [("effect", "Música")]
+
+
+def test_brilho_da_gui_nao_substitui_efeito(monkeypatch):
+    from controlfanrgb import window
+
+    chamadas = []
+    class Backend:
+        def set_brightness(self, value): chamadas.append(("brightness", value))
+        def set_zones(self, *args): chamadas.append(("zones", args))
+    class Botao:
+        def get_active(self): return False
+    class Preview:
+        colors = [(1, 2, 3)] * 4
+        def update(self, colors, brightness): pass
+    w = types.SimpleNamespace(
+        _applying=False, cfg={"brightness": 50}, backend=Backend(),
+        power_btn=Botao(), preview=Preview(), _save_id=0,
+        _toast=lambda msg: None, _save_config=lambda: None)
+    monkeypatch.setattr(window.GLib, "timeout_add", lambda ms, cb: 9)
+    window.Window._on_brightness(w, types.SimpleNamespace(get_value=lambda: 42))
+    assert chamadas == [("brightness", 42)]
+    assert w._save_id == 9
+
+
 # --------------------------------------------- interruptor de energia ----
 def test_set_power_state_nao_dispara_o_proprio_handler():
     """O botão de power era de mão única: só apagava. Virou interruptor, e aí

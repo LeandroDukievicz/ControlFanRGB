@@ -34,6 +34,18 @@ class Window(Adw.ApplicationWindow):
 
         self.cfg = config.load()
         self.backend = get_backend()
+        self._initial_status = {}
+        if self.backend.kind == "daemon":
+            try:
+                self._initial_status = self.backend.status()
+            except Exception:  # daemon pode reiniciar enquanto a janela abre
+                pass
+            else:
+                for key in ("mode", "zones", "brightness", "firmware_mode",
+                            "speed", "direction", "color", "software_effect"):
+                    source = "effect" if key == "software_effect" else key
+                    if source in self._initial_status:
+                        self.cfg[key] = self._initial_status[source]
         self.sensors = Sensors()        # leitura local, só para a prévia
         self._applying = False          # evita loop ao popular os widgets
         self._preview_effect = None
@@ -41,6 +53,7 @@ class Window(Adw.ApplicationWindow):
         self._paint_apply_id = 0
         self._preview_t0 = 0.0
         self._preview_id = 0
+        self._save_id = 0
 
         self.toasts = Adw.ToastOverlay()
         self.set_content(self.toasts)
@@ -51,10 +64,12 @@ class Window(Adw.ApplicationWindow):
         split.set_content(self._build_content())
 
         self._refresh_preview()
-        GLib.timeout_add_seconds(2, self._tick_sensors)
+        self._sensor_id = GLib.timeout_add_seconds(2, self._tick_sensors)
         self._tick_sensors()
 
-        if self.cfg["apply_on_start"]:
+        if self.backend.kind == "daemon":
+            self._restore_preview_from_status(self._initial_status)
+        elif self.cfg["apply_on_start"]:
             GLib.idle_add(self._apply_current)
 
         self.connect("close-request", self._on_close)
@@ -164,10 +179,12 @@ class Window(Adw.ApplicationWindow):
         g2.add(row)
         page.add(g2)
 
-        try:
-            st = self.backend.status()
-        except Exception:                            # noqa: BLE001
-            st = {}
+        st = self._initial_status
+        if not st:
+            try:
+                st = self.backend.status()
+            except Exception:                        # noqa: BLE001
+                st = {}
 
         g3 = Adw.PreferencesGroup(
             title="Quando a sessão fica sem uso",
@@ -422,7 +439,13 @@ class Window(Adw.ApplicationWindow):
         self.row_turbo.connect("notify::active", self._on_turbo)
         g2.add(self.row_turbo)
 
-        if not self.backend.status().get("turbo_available"):
+        st = self._initial_status
+        if not st:
+            try:
+                st = self.backend.status()
+            except Exception:
+                st = {}
+        if not st.get("turbo_available", False):
             self.row_turbo.set_sensitive(False)
             self.row_turbo.set_subtitle(
                 "indisponível — precisa do módulo facer 1.1+ e da regra udev "
@@ -459,7 +482,21 @@ class Window(Adw.ApplicationWindow):
         if self._applying:
             return
         self.cfg["brightness"] = int(scale.get_value())
-        self._apply_current(toast=False)
+        try:
+            self.backend.set_brightness(self.cfg["brightness"])
+        except Exception as e:
+            self._toast(f"Falhou: {e}")
+            return
+        if not self.power_btn.get_active():
+            self.preview.update(self.preview.colors, self.cfg["brightness"])
+        if self._save_id:
+            GLib.source_remove(self._save_id)
+        self._save_id = GLib.timeout_add(350, self._save_config)
+
+    def _save_config(self):
+        self._save_id = 0
+        config.save(self.cfg)
+        return GLib.SOURCE_REMOVE
 
     def _on_firmware_mode(self, *_a):
         if self._applying:
@@ -559,6 +596,19 @@ class Window(Adw.ApplicationWindow):
         self._preview_t0 = time.perf_counter()
         self._preview_id = GLib.timeout_add(66, self._tick_preview)
 
+    def _restore_preview_from_status(self, st):
+        self._set_power_state(not st.get("powered", True))
+        if not st.get("powered", True):
+            self.preview.update(self.cfg["zones"], 0)
+            return
+        name = st.get("effect") if st.get("mode") == "software" else None
+        if name in self.effect_rows:
+            _row, btn, inst = self.effect_rows[name]
+            self._start_preview(type(inst)())
+            btn.set_label("Parar")
+            btn.remove_css_class("suggested-action")
+            btn.add_css_class("destructive-action")
+
     def _tick_preview(self):
         if self._preview_effect is None:
             return False
@@ -598,7 +648,18 @@ class Window(Adw.ApplicationWindow):
 
     def _apply_current(self, toast=True):
         try:
-            if self.cfg["mode"] == "firmware":
+            if self.cfg["mode"] == "software":
+                name = self.cfg.get("software_effect")
+                if name not in self.effect_rows:
+                    raise ValueError(f"efeito desconhecido: {name}")
+                self.backend.start_effect(name)
+                if self._preview_effect is None:
+                    self._start_preview(type(self.effect_rows[name][2])())
+                _row, btn, _inst = self.effect_rows[name]
+                btn.set_label("Parar")
+                btn.remove_css_class("suggested-action")
+                btn.add_css_class("destructive-action")
+            elif self.cfg["mode"] == "firmware":
                 self.backend.set_firmware_effect(
                     self.cfg["firmware_mode"], self.cfg["speed"],
                     self.cfg["brightness"], self.cfg["direction"],
@@ -653,13 +714,15 @@ class Window(Adw.ApplicationWindow):
         Se havia um efeito por software, ele volta a rodar; senão vale o
         perfil de cores ou o efeito de firmware.
         """
-        nome = self.cfg.get("software_effect") or ""
-        if self.cfg.get("mode") == "software" and nome in self.effect_rows:
-            _row, btn, inst = self.effect_rows[nome]
-            self._on_software_effect(btn, inst)
+        try:
+            self.backend.apply_profile()
+            st = self.backend.status()
+        except Exception as e:
+            self._toast(f"Falhou: {e}")
+            self._set_power_state(True)
             return
-        self._apply_current(toast=False)
-        self.power_btn.set_tooltip_text("Apagar o teclado")
+        self._refresh_preview()
+        self._restore_preview_from_status(st)
         self._toast("Teclado aceso")
 
     def _refresh_preview(self):
@@ -693,6 +756,7 @@ class Window(Adw.ApplicationWindow):
             self._applying = True
             self.row_turbo.set_active(bool(st.get("turbo")))
             self._applying = False
+        self._set_power_state(not st.get("powered", True))
         return True
 
     def _toast(self, text):
@@ -702,6 +766,16 @@ class Window(Adw.ApplicationWindow):
         # o efeito continua no daemon de propósito — só paramos a prévia
         if self._preview_id:
             GLib.source_remove(self._preview_id)
+            self._preview_id = 0
+        if self._paint_apply_id:
+            GLib.source_remove(self._paint_apply_id)
+            self._apply_perkey()
+        if self._save_id:
+            GLib.source_remove(self._save_id)
+            self._save_id = 0
+        if self._sensor_id:
+            GLib.source_remove(self._sensor_id)
+            self._sensor_id = 0
         self.backend.close()
         config.save(self.cfg)
         return False

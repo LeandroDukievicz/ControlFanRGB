@@ -26,11 +26,12 @@ class ControlFanRGB(Adw.Application):
                          flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
 
     def do_activate(self):
-        provider = Gtk.CssProvider()
-        provider.load_from_string(CSS)
-        Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(), provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        if not hasattr(self, "_css_provider"):
+            self._css_provider = Gtk.CssProvider()
+            self._css_provider.load_from_string(CSS)
+            Gtk.StyleContext.add_provider_for_display(
+                Gdk.Display.get_default(), self._css_provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
         from .window import Window
         win = self.props.active_window or Window(self)
