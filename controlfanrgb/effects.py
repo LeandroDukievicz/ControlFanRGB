@@ -232,6 +232,7 @@ class Engine:
         self._thread = None
         self._stop = threading.Event()
         self._io_lock = threading.Lock()
+        self._brightness = 100
         self.current = None
         self.last_warning = None
 
@@ -253,11 +254,15 @@ class Engine:
         self.stop()
         self.last_warning = None
         self.current = effect
+        self._brightness = brightness
         stop = threading.Event()
         self._stop = stop
         self._thread = threading.Thread(
-            target=self._loop, args=(effect, brightness, stop), daemon=True)
+            target=self._loop, args=(effect, stop), daemon=True)
         self._thread.start()
+
+    def set_brightness(self, brightness):
+        self._brightness = brightness
 
     def stop(self):
         if not self.running:
@@ -273,7 +278,7 @@ class Engine:
             self.last_warning = "a thread do efeito não terminou em 1 s"
         self.current = None
 
-    def _loop(self, effect, brightness, stop):
+    def _loop(self, effect, stop):
         t0 = time.perf_counter()
         while not stop.is_set():
             t = time.perf_counter() - t0
@@ -282,7 +287,7 @@ class Engine:
                 with self._io_lock:
                     if stop.is_set():
                         break
-                    self._kb.set_zones(colors, brightness)
+                    self._kb.set_zones(colors, self._brightness)
             except OSError:
                 break          # device sumiu (módulo descarregado) — sai limpo
             if self._on_frame:

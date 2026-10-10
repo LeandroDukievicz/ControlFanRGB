@@ -293,6 +293,46 @@ def test_engine_serializa_escritas_ao_trocar_efeito_bloqueado():
     assert escritas[1] == (2, 2, 2)
 
 
+def test_sensor_de_temperatura_limita_leituras_do_sysfs(monkeypatch):
+    from controlfanrgb import hardware
+
+    leituras = []
+    instante = [10.0]
+    monkeypatch.setattr(hardware.time, "monotonic", lambda: instante[0])
+    monkeypatch.setattr(hardware, "_find_hwmon", lambda name: "/fake")
+    monkeypatch.setattr(hardware, "_read_int", lambda path: leituras.append(path) or 50000)
+    sensors = hardware.Sensors()
+    for _ in range(30):
+        assert sensors.cpu_temp() == 50.0
+    assert len(leituras) == 1
+    instante[0] += 0.5
+    sensors.cpu_temp()
+    assert len(leituras) == 2
+
+
+def test_brilho_de_efeito_nao_reinicia_thread():
+    class Teclado:
+        def __init__(self): self.brilhos = []
+        def set_zones(self, colors, brightness): self.brilhos.append(brightness)
+    class Efeito:
+        def frame(self, t, sensors): return [(1, 2, 3)] * 4
+    kb = Teclado()
+    motor = effects.Engine(kb, None)
+    motor.start(Efeito(), 30)
+    thread = motor._thread
+    deadline = time.monotonic() + 1
+    while not kb.brilhos and time.monotonic() < deadline:
+        time.sleep(.01)
+    motor.set_brightness(80)
+    deadline = time.monotonic() + 1
+    while 80 not in kb.brilhos and time.monotonic() < deadline:
+        time.sleep(.01)
+    assert motor._thread is thread
+    motor.stop()
+    assert motor._thread is None
+    assert thread is not None and 80 in kb.brilhos
+
+
 def test_keyboard_fecha_primeiro_fd_se_segundo_falhar(monkeypatch):
     from controlfanrgb import hardware
 

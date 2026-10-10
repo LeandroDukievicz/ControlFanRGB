@@ -120,6 +120,7 @@ class Daemon:
         self._idle_active = False      # apagado por inatividade agora mesmo
         self._powered = True           # Off é temporário; o perfil fica salvo
         self._conn = None
+        self._save_timer = 0
         self.loop = GLib.MainLoop()
 
     # ------------------------------------------------------------- D-Bus ---
@@ -228,14 +229,12 @@ class Daemon:
 
         elif method == "SetBrightness":
             self.state["brightness"] = validation.integer(args[0], 0, 100)
-            if not self._powered:
-                _save_state(self.state)
-            elif self.engine.running:                # reinicia com o novo brilho
-                name = self.state["software_effect"]
-                self.engine.start(self._effects[name](), self.state["brightness"])
-                _save_state(self.state)
-            else:
-                self._apply_state()
+            if self._powered:
+                if self.engine.running:
+                    self.engine.set_brightness(self.state["brightness"])
+                else:
+                    self._apply_state(persist=False)
+            self._queue_save()
 
         elif method == "Off":
             self.engine.stop()
@@ -307,7 +306,7 @@ class Daemon:
                 self._apply_state()
 
     # ------------------------------------------------------------- estado ---
-    def _apply_state(self, attempt=0):
+    def _apply_state(self, attempt=0, persist=True):
         """Aplica o perfil, insistindo enquanto o hardware não estiver pronto.
 
         O módulo facer cria /dev/acer-gkbbl-* de forma **assíncrona**: no boot
@@ -343,8 +342,19 @@ class Daemon:
 
         if attempt:
             _log(f"perfil aplicado na tentativa {attempt + 1}")
-        _save_state(st)
+        if persist:
+            _save_state(st)
         return False            # idle_add/timeout_add: não repetir
+
+    def _queue_save(self):
+        if self._save_timer:
+            GLib.source_remove(self._save_timer)
+        self._save_timer = GLib.timeout_add(350, self._flush_state)
+
+    def _flush_state(self):
+        self._save_timer = 0
+        _save_state(self.state)
+        return GLib.SOURCE_REMOVE
 
     def _retry(self, attempt, why):
         self.kb.close()                       # fds podem ter ficado inválidos
@@ -407,6 +417,9 @@ class Daemon:
 
     def _quit(self, *_a):
         _log("encerrando")
+        if self._save_timer:
+            GLib.source_remove(self._save_timer)
+            self._flush_state()
         self.engine.stop()
         self.kb.close()
         self.loop.quit()

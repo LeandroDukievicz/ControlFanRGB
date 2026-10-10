@@ -18,6 +18,7 @@ aqui usa os.write() em fd cru.
 """
 import glob
 import os
+import time
 
 STATIC_DEV = "/dev/acer-gkbbl-static-0"
 TURBO_SYSFS = "/sys/devices/platform/acer-wmi/turbo"
@@ -137,6 +138,12 @@ class Sensors:
     def __init__(self):
         self._acer = _find_hwmon("acer")
         self._coretemp = _find_hwmon("coretemp")
+        self._fans_at = 0.0
+        self._fans_cached = None
+        self._temp_at = 0.0
+        self._temp_cached = None
+        self._search_at = 0.0
+        self._temp_search_at = 0.0
 
     @property
     def fans_available(self):
@@ -149,20 +156,40 @@ class Sensors:
         ventoinha. Na quirk atual do PH315-54 ela vem desligada — ver fase 0 do
         roadmap, que corrige a quirk.
         """
-        if self._acer is None:
+        now = time.monotonic()
+        if now - self._fans_at < 1.0:
+            return self._fans_cached
+        self._fans_at = now
+        if self._acer is None and now - self._search_at >= 5.0:
+            self._search_at = now
             self._acer = _find_hwmon("acer")      # pode ter aparecido depois
-            if self._acer is None:
-                return None
+        if self._acer is None:
+            self._fans_cached = None
+            return None
         cpu = _read_int(f"{self._acer}/fan1_input")
         gpu = _read_int(f"{self._acer}/fan2_input")
-        return None if cpu is None else (cpu, gpu or 0)
+        if cpu is None:
+            self._acer = None
+        self._fans_cached = None if cpu is None else (cpu, gpu or 0)
+        return self._fans_cached
 
     def cpu_temp(self):
         """°C ou None."""
+        now = time.monotonic()
+        if now - self._temp_at < 0.5:
+            return self._temp_cached
+        self._temp_at = now
         if self._coretemp is None:
-            return None
+            if now - self._temp_search_at >= 5.0:
+                self._temp_search_at = now
+                self._coretemp = _find_hwmon("coretemp")
+            if self._coretemp is None:
+                return None
         milli = _read_int(f"{self._coretemp}/temp1_input")
-        return None if milli is None else milli / 1000.0
+        if milli is None:
+            self._coretemp = None
+        self._temp_cached = None if milli is None else milli / 1000.0
+        return self._temp_cached
 
 
 # ----------------------------------------------------------------- helpers --

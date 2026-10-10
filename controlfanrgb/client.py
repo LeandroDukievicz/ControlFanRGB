@@ -200,7 +200,7 @@ class LocalBackend:
         if not self._powered:
             return
         if self.engine.running:
-            self.engine.start(self._classes[self._effect](), value)
+            self.engine.set_brightness(value)
         elif self._mode == "firmware":
             mode, speed, direction, color = self._fw
             self.kb.set_effect(mode, speed, value, direction, color)
