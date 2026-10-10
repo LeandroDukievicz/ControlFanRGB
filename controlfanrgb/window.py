@@ -160,6 +160,35 @@ class Window(Adw.ApplicationWindow):
         row.add_suffix(self.brightness)
         g2.add(row)
         page.add(g2)
+
+        try:
+            st = self.backend.status()
+        except Exception:                            # noqa: BLE001
+            st = {}
+
+        g3 = Adw.PreferencesGroup(
+            title="Quando a sessão fica sem uso",
+            description="Depende do ícone de bandeja estar rodando: quem "
+                        "percebe a inatividade é a sessão, e o daemon de "
+                        "sistema não tem como saber se você está digitando.")
+
+        self.always_on = Adw.SwitchRow(
+            title="Sempre aceso",
+            subtitle="Desligue para o teclado apagar sozinho depois de um "
+                     "tempo parado")
+        self.always_on.set_active(not st.get("idle_blank", False))
+        self.always_on.connect("notify::active", self._on_always_on)
+        g3.add(self.always_on)
+
+        self.idle_minutes = Adw.SpinRow.new_with_range(1, 60, 1)
+        self.idle_minutes.set_title("Apagar após")
+        self.idle_minutes.set_subtitle("minutos sem teclado nem mouse")
+        self.idle_minutes.set_value(
+            max(1, round(int(st.get("idle_timeout", 120)) / 60)))
+        self.idle_minutes.set_sensitive(not self.always_on.get_active())
+        self.idle_minutes.connect("notify::value", self._on_idle_timeout)
+        g3.add(self.idle_minutes)
+        page.add(g3)
         return page
 
     def _page_perkey(self):
@@ -461,6 +490,44 @@ class Window(Adw.ApplicationWindow):
         button.remove_css_class("suggested-action")
         button.add_css_class("destructive-action")
         self._toast(f"{inst.nome} ativo")
+
+        if inst.nome == effects.Music.nome:
+            # Quem amostra o áudio é o tray. Se ele não estiver no ar, o efeito
+            # roda mas nunca reage — melhor dizer do que deixar o usuário
+            # achando que está quebrado.
+            GLib.timeout_add_seconds(3, self._check_audio_arriving)
+
+    def _on_always_on(self, row, _p):
+        if self._applying:
+            return
+        blank = not row.get_active()
+        self.idle_minutes.set_sensitive(blank)
+        self._push_idle(blank)
+
+    def _on_idle_timeout(self, _row, _p):
+        if self._applying or self.always_on.get_active():
+            return
+        self._push_idle(True)
+
+    def _push_idle(self, blank):
+        minutos = int(self.idle_minutes.get_value())
+        try:
+            self.backend.set_idle_blank(blank, minutos * 60)
+        except Exception as e:                       # noqa: BLE001
+            self._toast(str(e))
+            return
+        self._toast(f"Apaga após {minutos} min sem uso" if blank
+                    else "Teclado sempre aceso")
+
+    def _check_audio_arriving(self):
+        try:
+            st = self.backend.status()
+        except Exception:                            # noqa: BLE001
+            return GLib.SOURCE_REMOVE
+        if st.get("effect") == effects.Music.nome and not st.get("audio_fresh"):
+            self._toast("Sem áudio chegando — o ícone de bandeja precisa "
+                        "estar rodando")
+        return GLib.SOURCE_REMOVE
 
     def _on_turbo(self, row, _p):
         if self._applying:

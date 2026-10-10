@@ -32,11 +32,13 @@ install_data(
   [
     'controlfanrgb/__init__.py',
     'controlfanrgb/app.py',
+    'controlfanrgb/audio.py',
     'controlfanrgb/client.py',
     'controlfanrgb/config.py',
     'controlfanrgb/daemon.py',
     'controlfanrgb/effects.py',
     'controlfanrgb/hardware.py',
+    'controlfanrgb/idle.py',
     'controlfanrgb/keyboardview.py',
     'controlfanrgb/perkey.py',
     'controlfanrgb/themes.py',

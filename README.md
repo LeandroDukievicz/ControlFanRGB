@@ -12,9 +12,13 @@ Tudo abaixo funciona e foi testado neste hardware (Predator PH315-54):
 
 - Cor individual das **4 zonas** + brilho
 - Os 6 efeitos do firmware: estático, respiração, neon, onda, shifting, zoom
-- 7 temas prontos
-- **4 efeitos por software** que o PredatorSense do Windows não tem:
-  arco-íris, carga da CPU, termômetro e respiração suave
+- **10 temas prontos**, incluindo Dracula e Cyberpunk com as paletas oficiais,
+  mais Steampunk, Vapor, Matrix, Summer, Glacial, Âmbar, Brasil e Branco
+- **6 efeitos por software** que o PredatorSense do Windows não tem:
+  arco-íris, Matrix, reação à música, carga da CPU, termômetro e respiração
+  suave
+- Chave **Sempre aceso** ou apagar o teclado sozinho depois de N minutos
+  parado
 - **Modo turbo** ligar/desligar, pela interface e pelo CLI
 - **RPM das duas ventoinhas** e temperatura da CPU, ao vivo
 
@@ -101,6 +105,10 @@ desenvolvimento) — o cabeçalho mostra em qual modo está.
 Dependências: `python3-gi`, `gir1.2-gtk-4.0`, `gir1.2-adw-1`, `python3-gi-cairo`
 e o módulo de kernel `facer` carregado.
 
+O efeito que reage à música pede mais duas, e só ele: `python3-numpy` e
+`pw-record` (pacote `pipewire-bin`). Ambas são opcionais de verdade — sem elas
+o resto do app funciona igual e só esse efeito fica em modo de espera.
+
 Para turbo e leitura de ventoinha, aplique o patch do módulo:
 
 ```bash
@@ -136,6 +144,8 @@ personalizados, com o comando acima.
 | `controlfanrgb/client.py` | backend D-Bus + fallback direto |
 | `controlfanrgb/tray.py` | ícone de bandeja (StatusNotifierItem + dbusmenu) |
 | `controlfanrgb/perkey.py` | resolve o mapa tecla-a-tecla para as 4 zonas |
+| `controlfanrgb/audio.py` | amostra o áudio da sessão para o efeito de música |
+| `controlfanrgb/idle.py` | observa a inatividade da sessão (Mutter IdleMonitor) |
 | `kernel/` | patch do módulo `facer` + instalar/reverter |
 | `meson.build` | build e instalação em `/usr` |
 | `controlfanrgb.in` | molde dos três executáveis gerados |
@@ -165,6 +175,26 @@ como Flatpak ou snap depois — nada confinado precisa tocar em `/dev`.
 
 O protocolo do hardware está documentado no topo de `hardware.py` — não existe
 documentação oficial dele em lugar nenhum.
+
+### O que é de sessão, e por quê
+
+Duas funções não podem morar no daemon, por mais que ele seja o dono do
+hardware:
+
+- **Inatividade.** No Wayland um cliente comum não vê eventos de entrada que
+  não sejam para as suas janelas, então contar teclas dentro do app é
+  impossível por design. Quem sabe é o `org.gnome.Mutter.IdleMonitor`, que é
+  de sessão. (O `IdleHint` do logind existe, mas no GNOME não acompanha
+  teclado e mouse.)
+- **Áudio.** O PipeWire do usuário atende num socket em `$XDG_RUNTIME_DIR`, e
+  um serviço de root lendo o áudio de quem está logado seria a arquitetura
+  errada mesmo que fosse possível.
+
+Então o **tray** faz as duas e manda ao daemon apenas o resultado: um booleano
+de inatividade e cinco números de áudio. O daemon continua sendo quem desenha,
+que é o que mantém os efeitos rodando com a janela fechada. O preço é que as
+duas funções dependem do tray estar no ar — a janela avisa com um toast se o
+efeito de música não estiver recebendo nada.
 
 ## Pesquisa
 

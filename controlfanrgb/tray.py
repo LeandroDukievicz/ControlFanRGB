@@ -18,7 +18,9 @@ import gi
 from gi.repository import Gio, GLib  # noqa: E402
 
 from . import build_info, effects, themes
+from .audio import Sampler
 from .client import get_backend
+from .idle import IdleWatcher
 
 SNI_IFACE = "org.kde.StatusNotifierItem"
 MENU_IFACE = "com.canonical.dbusmenu"
@@ -118,6 +120,14 @@ class Tray:
         self._root = self._build_menu()
         self._index(self._root)
 
+        # Partes que só um processo de sessão consegue fazer. O daemon é de
+        # sistema: não vê o PipeWire do usuário nem sabe se ele está digitando.
+        self._sampler = Sampler(self._on_audio)
+        self._audio = None
+        self._audio_timer = None
+        self._idle = IdleWatcher(self._on_idle_change)
+        self._idle_armed = False
+
     # --------------------------------------------------------- modelo ------
     def _build_menu(self):
         next_id = iter(range(1, 500))
@@ -207,6 +217,7 @@ class Tray:
         for sig in (signal.SIGINT, signal.SIGTERM):
             GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, self._quit)
         GLib.timeout_add_seconds(2, self._refresh)
+        GLib.idle_add(self._refresh)          # não espera os 2 s do primeiro poll
         self.loop.run()
 
     def _on_bus_acquired(self, conn, _name):
@@ -361,6 +372,9 @@ class Tray:
             self.item_fans["label"] = label
             changed.append(self.item_fans)
 
+        self._sync_audio(st)
+        self._sync_idle(st)
+
         if changed and self._conn is not None:
             self._conn.emit_signal(
                 None, MENU_PATH, MENU_IFACE, "ItemsPropertiesUpdated",
@@ -369,7 +383,70 @@ class Tray:
             self._conn.emit_signal(None, SNI_PATH, SNI_IFACE, "NewToolTip", None)
         return True
 
+    # ------------------------------------------------------------- áudio ----
+    def _sync_audio(self, st):
+        """Liga o amostrador só enquanto o efeito de música estiver ativo."""
+        quer = st.get("effect") == effects.Music.nome
+        if quer and not self._sampler.running:
+            if self._sampler.start():
+                self._audio_timer = GLib.timeout_add(45, self._push_audio)
+                _log("amostrando o áudio da sessão")
+            else:
+                _log(f"sem áudio: {self._sampler.last_error}")
+        elif not quer and self._sampler.running:
+            self._sampler.stop()
+            if self._audio_timer:
+                GLib.source_remove(self._audio_timer)
+                self._audio_timer = None
+            self._audio = None
+            _log("amostragem de áudio encerrada")
+
+    def _on_audio(self, level, bands):
+        """Chamado da thread do amostrador — só guarda o valor.
+
+        Falar D-Bus daqui seria falar de outra thread que não a da main loop.
+        Quem envia é `_push_audio`, na loop.
+        """
+        self._audio = (level, bands)
+
+    def _push_audio(self):
+        if self._audio_timer is None:
+            return GLib.SOURCE_REMOVE
+        data, self._audio = self._audio, None
+        if data is not None:
+            try:
+                self.backend.set_audio_level(*data)
+            except Exception:                        # noqa: BLE001
+                pass                                 # daemon caiu; o poll reconcilia
+        return True
+
+    # -------------------------------------------------------- inatividade ---
+    def _sync_idle(self, st):
+        """Arma ou desarma o observador conforme a preferência do daemon."""
+        quer = bool(st.get("idle_blank"))
+        if quer and not self._idle_armed:
+            if self._idle.start():
+                self._idle.set_timeout(st.get("idle_timeout", 120))
+                self._idle_armed = True
+                _log(f"apagar após {st.get('idle_timeout', 120)} s sem uso")
+            else:
+                _log(f"sem detecção de inatividade: {self._idle.last_error}")
+        elif not quer and self._idle_armed:
+            self._idle.stop()
+            self._idle_armed = False
+            _log("detecção de inatividade desligada")
+        elif quer and self._idle_armed:
+            self._idle.set_timeout(st.get("idle_timeout", 120))
+
+    def _on_idle_change(self, idle):
+        try:
+            self.backend.set_idle_state(idle)
+        except Exception as e:                       # noqa: BLE001
+            _log(f"não consegui avisar o daemon da inatividade: {e!r}")
+
     def _quit(self, *_a):
+        self._sampler.stop()
+        self._idle.stop()
         self.loop.quit()
         return GLib.SOURCE_REMOVE
 

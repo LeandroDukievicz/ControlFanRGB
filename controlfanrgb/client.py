@@ -70,6 +70,24 @@ class DaemonBackend:
     def off(self):
         self._call("Off")
 
+    def set_idle_blank(self, enabled, timeout):
+        self._call("SetIdleBlank", GLib.Variant("(bu)", (enabled, int(timeout))))
+
+    def set_idle_state(self, idle):
+        self._call("SetIdleState", GLib.Variant("(b)", (idle,)))
+
+    def set_audio_level(self, level, bands):
+        """Assíncrono e sem esperar resposta, de propósito.
+
+        São ~23 chamadas por segundo: um `call_sync` aqui bloquearia a loop do
+        tray em cada quadro de áudio. E perder um quadro é inócuo — o próximo
+        vem em 43 ms.
+        """
+        self._proxy.call(
+            "SetAudioLevel",
+            GLib.Variant("(dad)", (float(level), [float(b) for b in bands])),
+            Gio.DBusCallFlags.NO_AUTO_START, 500, None, None, None)
+
     def set_turbo(self, on):
         self._call("SetTurbo", GLib.Variant("(b)", (on,)))
 
@@ -95,6 +113,9 @@ class LocalBackend:
                        (45, 226, 255)]
         self._mode = "zones"
         self._fw = (3, 5, 1, (45, 226, 255))
+        self._idle_blank = False
+        self._idle_timeout = 120
+        self._idle_active = False
 
     def status(self):
         fans = self.sensors.fans() or (0, 0)
@@ -109,6 +130,12 @@ class LocalBackend:
             "fan_cpu": fans[0],
             "fan_gpu": fans[1],
             "cpu_temp": self.sensors.cpu_temp() or 0.0,
+            "idle_blank": self._idle_blank,
+            "idle_timeout": self._idle_timeout,
+            "idle_active": self._idle_active,
+            "audio_fresh": effects.AUDIO.fresh,
+            "audio_level": effects.AUDIO.level,
+            "audio_bands": list(effects.AUDIO.bands),
         }
 
     def set_zones(self, colors, brightness):
@@ -125,7 +152,7 @@ class LocalBackend:
         self.kb.set_effect(mode, speed, brightness, direction, color)
 
     def apply_theme(self, name):
-        self.set_zones(themes.THEMES[name], self._brightness)
+        self.set_zones(themes.THEMES[themes.resolve(name)], self._brightness)
 
     def start_effect(self, name):
         self.engine.start(self._classes[name](), self._brightness)
@@ -149,6 +176,34 @@ class LocalBackend:
     def off(self):
         self.engine.stop()
         self.kb.off()
+
+    def set_idle_blank(self, enabled, timeout):
+        self._idle_blank = bool(enabled)
+        self._idle_timeout = max(15, int(timeout))
+        if not self._idle_blank and self._idle_active:
+            self.set_idle_state(False)
+
+    def set_idle_state(self, idle):
+        if idle == self._idle_active:
+            return
+        if idle:
+            if not self._idle_blank:
+                return
+            self._idle_active = True
+            self.engine.stop()
+            self.kb.off()
+        else:
+            self._idle_active = False
+            if self._mode == "software" and self._effect:
+                self.engine.start(self._classes[self._effect](), self._brightness)
+            elif self._mode == "firmware":
+                mode, speed, direction, color = self._fw
+                self.kb.set_effect(mode, speed, self._brightness, direction, color)
+            else:
+                self.kb.set_zones(self._zones, self._brightness)
+
+    def set_audio_level(self, level, bands):
+        effects.AUDIO.push(level, bands)
 
     def set_turbo(self, on):
         Turbo.set(on)

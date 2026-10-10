@@ -8,6 +8,7 @@ O motor roda numa thread e chama `on_frame` pra UI poder espelhar as cores.
 """
 import colorsys
 import math
+import random
 import threading
 import time
 
@@ -17,6 +18,45 @@ FPS = 30
 def hsv(h, s=1.0, v=1.0):
     r, g, b = colorsys.hsv_to_rgb(h % 1.0, s, v)
     return int(r * 255), int(g * 255), int(b * 255)
+
+
+# -------------------------------------------------------------------- áudio --
+class AudioState:
+    """Níveis de áudio empurrados de fora, para o efeito reativo.
+
+    O motor roda no daemon, que é de sistema e não alcança o PipeWire do
+    usuário — o socket vive em `$XDG_RUNTIME_DIR`, e um serviço de root lendo
+    o áudio de quem está logado seria a arquitetura errada. Então quem amostra
+    é o processo de sessão (o tray, via `audio.Sampler`) e o que cruza o D-Bus
+    são cinco números, nunca áudio.
+
+    Se a fonte parar de empurrar, `fresh` fica falso e o efeito cai num modo
+    discreto em vez de congelar no último quadro.
+    """
+
+    STALE_AFTER = 1.5          # segundos sem notícia = sem áudio
+
+    def __init__(self):
+        self.level = 0.0
+        self.bands = [0.0, 0.0, 0.0, 0.0]
+        self._at = 0.0
+
+    def push(self, level, bands):
+        self.level = max(0.0, min(1.0, float(level)))
+        self.bands = [max(0.0, min(1.0, float(b))) for b in bands]
+        self._at = time.monotonic()
+
+    @property
+    def fresh(self):
+        return (time.monotonic() - self._at) < self.STALE_AFTER
+
+    def read(self):
+        if not self.fresh:
+            return 0.0, [0.0, 0.0, 0.0, 0.0]
+        return self.level, list(self.bands)
+
+
+AUDIO = AudioState()
 
 
 # ------------------------------------------------------------------ efeitos --
@@ -87,7 +127,72 @@ class Breathing:
         return out
 
 
-SOFTWARE_EFFECTS = [Rainbow, CpuLoad, Thermometer, Breathing]
+class Matrix:
+    nome = "Matrix"
+    descricao = "Chuva de código: cada zona é uma coluna que acende e decai"
+
+    GREEN = (57, 255, 20)      # #39ff14, o verde do filme
+    HEAD = (205, 255, 205)     # a cabeça do rastro é quase branca
+    FLOOR = (0, 10, 2)         # nunca apaga de vez: teclado preto parece defeito
+    DECAY = 2.6                # queda por segundo
+
+    def __init__(self):
+        # Cada zona é uma coluna independente, com fase e ritmo próprios —
+        # é o que impede as quatro de pulsarem juntas e parecer respiração.
+        self._level = [random.random() for _ in range(4)]
+        self._next = [random.uniform(0.0, 1.2) for _ in range(4)]
+        self._last_t = 0.0
+
+    def frame(self, t, sensors):
+        dt = max(0.0, min(0.25, t - self._last_t))
+        self._last_t = t
+        out = []
+        for z in range(4):
+            self._next[z] -= dt
+            if self._next[z] <= 0.0:
+                self._level[z] = 1.0
+                self._next[z] = random.uniform(0.35, 1.9)
+            else:
+                self._level[z] *= math.exp(-self.DECAY * dt)
+
+            lv = self._level[z]
+            c = [int(ch * lv) for ch in self.GREEN]
+            if lv > 0.82:                       # clareia na cabeça
+                f = (lv - 0.82) / 0.18
+                c = [int(c[i] + (self.HEAD[i] - c[i]) * f) for i in range(3)]
+            out.append(tuple(max(c[i], self.FLOOR[i]) for i in range(3)))
+        return out
+
+
+class Music:
+    nome = "Música"
+    descricao = ("Reage ao som que está tocando: graves à esquerda, "
+                 "agudos à direita")
+
+    # Uma cor por banda, da esquerda para a direita do teclado.
+    HUES = (0.95, 0.78, 0.50, 0.33)     # rosa, violeta, ciano, verde
+
+    def frame(self, t, sensors):
+        level, bands = AUDIO.read()
+
+        if not AUDIO.fresh:
+            # Ninguém está amostrando (tray desligado, ou nada tocando ainda).
+            # Uma respiração fraca comunica "esperando" melhor que apagado.
+            v = 0.07 + 0.06 * (0.5 + 0.5 * math.sin(t * 1.6))
+            return [hsv(0.58, 0.55, v)] * 4
+
+        out = []
+        for z in range(4):
+            e = bands[z] if z < len(bands) else level
+            v = 0.05 + 0.95 * e
+            # Satura menos no pico: o brilho "estoura" para o branco em vez de
+            # saturar na cor e perder a sensação de ataque.
+            s = 1.0 - 0.4 * e
+            out.append(hsv(self.HUES[z] + 0.03 * math.sin(t * 0.3), s, v))
+        return out
+
+
+SOFTWARE_EFFECTS = [Rainbow, Matrix, Music, CpuLoad, Thermometer, Breathing]
 
 
 # ------------------------------------------------------------------- motor --

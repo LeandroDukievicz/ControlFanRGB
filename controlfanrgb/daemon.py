@@ -41,6 +41,10 @@ DEFAULT_STATE = {
     "direction": 1,
     "color": [45, 226, 255],
     "software_effect": "",
+    # Apagar o teclado quando a sessão fica inativa. Falso por padrão para não
+    # mudar o comportamento de quem já usava o app.
+    "idle_blank": False,
+    "idle_timeout": 120,              # segundos
 }
 
 INTROSPECTION = """
@@ -75,6 +79,17 @@ INTROSPECTION = """
     <method name="ToggleTurbo">
       <arg type="b" name="state" direction="out"/>
     </method>
+    <method name="SetIdleBlank">
+      <arg type="b" name="enabled" direction="in"/>
+      <arg type="u" name="timeout" direction="in"/>
+    </method>
+    <method name="SetIdleState">
+      <arg type="b" name="idle" direction="in"/>
+    </method>
+    <method name="SetAudioLevel">
+      <arg type="d" name="level" direction="in"/>
+      <arg type="ad" name="bands" direction="in"/>
+    </method>
     <method name="GetStatus">
       <arg type="a{sv}" name="status" direction="out"/>
     </method>
@@ -84,6 +99,9 @@ INTROSPECTION = """
     <signal name="FansChanged">
       <arg type="u" name="cpu"/>
       <arg type="u" name="gpu"/>
+    </signal>
+    <signal name="EffectChanged">
+      <arg type="s" name="name"/>
     </signal>
   </interface>
 </node>
@@ -99,6 +117,7 @@ class Daemon:
         self._effects = {cls().nome: cls for cls in effects.SOFTWARE_EFFECTS}
         self._last_fans = None
         self._last_turbo = None
+        self._idle_active = False      # apagado por inatividade agora mesmo
         self._conn = None
         self.loop = GLib.MainLoop()
 
@@ -165,7 +184,7 @@ class Daemon:
             self._apply_state()
 
         elif method == "ApplyTheme":
-            name = args[0]
+            name = themes.resolve(args[0])
             if name not in themes.THEMES:
                 raise ValueError(f"tema desconhecido: {name}")
             self.engine.stop()
@@ -180,11 +199,13 @@ class Daemon:
             self.state.update(mode="software", software_effect=name)
             self.engine.start(self._effects[name](), self.state["brightness"])
             _save_state(self.state)
+            self._emit("EffectChanged", GLib.Variant("(s)", (name,)))
 
         elif method == "StopEffect":
             self.engine.stop()
             self.state.update(mode="zones", software_effect="")
             self._apply_state()
+            self._emit("EffectChanged", GLib.Variant("(s)", ("",)))
 
         elif method == "SetBrightness":
             self.state["brightness"] = int(args[0])
@@ -211,12 +232,54 @@ class Daemon:
             self._poll_turbo(force=True)
             return GLib.Variant("(b)", (new,))
 
+        elif method == "SetIdleBlank":
+            enabled, timeout = bool(args[0]), max(15, int(args[1]))
+            self.state.update(idle_blank=enabled, idle_timeout=timeout)
+            if not enabled and self._idle_active:
+                # desligou a opção estando apagado: acende de volta na hora
+                self._idle_active = False
+                self._apply_state()
+            else:
+                _save_state(self.state)
+
+        elif method == "SetIdleState":
+            self._set_idle(bool(args[0]))
+
+        elif method == "SetAudioLevel":
+            effects.AUDIO.push(args[0], args[1])
+
         elif method == "GetStatus":
             return GLib.Variant("(a{sv})", (self._status(),))
 
         else:
             raise ValueError(f"método desconhecido: {method}")
         return None
+
+    # -------------------------------------------------------- inatividade ---
+    def _set_idle(self, idle):
+        """Apaga ou reacende por inatividade da sessão.
+
+        Quem detecta a inatividade é o tray, via `org.gnome.Mutter.IdleMonitor`
+        — é informação de sessão, e o daemon é de sistema. Aqui só se age.
+
+        Apagar para o motor de efeitos em vez de só escrever preto: um efeito
+        rodando sobrescreveria o apagado 30 vezes por segundo. Reacender passa
+        por `_apply_state`, que religa o efeito de onde parou.
+        """
+        if idle == self._idle_active:
+            return
+        if idle:
+            if not self.state.get("idle_blank"):
+                return
+            self._idle_active = True
+            self.engine.stop()
+            try:
+                self.kb.off()
+            except (KeyboardUnavailable, OSError) as e:
+                _log(f"não consegui apagar na inatividade: {e}")
+        else:
+            self._idle_active = False
+            self._apply_state()
 
     # ------------------------------------------------------------- estado ---
     def _apply_state(self, attempt=0):
@@ -232,6 +295,10 @@ class Daemon:
         inválidos, então fechamos antes de tentar de novo.
         """
         st = self.state
+        if self._idle_active:
+            # Apagado por inatividade. Sem esta guarda, o poll do resume ou um
+            # ApplyProfile reacenderia o teclado com a sessão ainda parada.
+            return False
         if not Keyboard.available():
             return self._retry(attempt, "devices do teclado ainda não existem")
         try:
@@ -280,6 +347,13 @@ class Daemon:
             "fan_cpu": GLib.Variant("u", fans[0]),
             "fan_gpu": GLib.Variant("u", fans[1]),
             "cpu_temp": GLib.Variant("d", temp),
+            "idle_blank": GLib.Variant("b", bool(self.state.get("idle_blank"))),
+            "idle_timeout": GLib.Variant(
+                "u", int(self.state.get("idle_timeout", 120))),
+            "idle_active": GLib.Variant("b", self._idle_active),
+            "audio_fresh": GLib.Variant("b", effects.AUDIO.fresh),
+            "audio_level": GLib.Variant("d", effects.AUDIO.level),
+            "audio_bands": GLib.Variant("ad", list(effects.AUDIO.bands)),
         }
 
     # -------------------------------------------------------------- loop ----
