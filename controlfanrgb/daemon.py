@@ -136,8 +136,15 @@ class Daemon:
     def _on_bus_acquired(self, conn, _name):
         self._conn = conn
         node = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION)
-        conn.register_object(OBJ_PATH, node.interfaces[0], self._on_call,
-                             None, None)
+        # register_object_with_closures2, e não register_object: a primeira é
+        # depreciada no PyGObject e **vaza** a cada chamada recebida. Medido
+        # num serviço mínimo, sem nada deste projeto, a 22 chamadas/s:
+        #   register_object               +1921 B por chamada
+        #   register_object_with_closures2   +66 B por chamada
+        # Com o efeito Música, que envia 22 SetAudioLevel/s, a diferença era
+        # o daemon crescer ~2,4 MB por minuto sem parar.
+        conn.register_object_with_closures2(
+            OBJ_PATH, node.interfaces[0], self._on_call, None, None)
         # acordar do suspend derruba o backlight: o logind nos avisa
         conn.signal_subscribe(
             "org.freedesktop.login1", "org.freedesktop.login1.Manager",

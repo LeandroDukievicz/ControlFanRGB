@@ -242,9 +242,17 @@ class Tray:
         self._conn = conn
         sni = Gio.DBusNodeInfo.new_for_xml(SNI_XML).interfaces[0]
         menu = Gio.DBusNodeInfo.new_for_xml(MENU_XML).interfaces[0]
-        conn.register_object(SNI_PATH, sni, self._sni_call, self._sni_get, None)
-        conn.register_object(MENU_PATH, menu, self._menu_call,
-                             self._menu_get, None)
+        # register_object_with_closures2, e não register_object: a primeira é
+        # depreciada no PyGObject e **vaza** a cada chamada recebida. Medido
+        # num serviço mínimo, sem nada deste projeto, a 22 chamadas/s:
+        #   register_object               +1921 B por chamada
+        #   register_object_with_closures2   +66 B por chamada
+        # Com o efeito Música, que envia 22 SetAudioLevel/s, a diferença era
+        # o daemon crescer ~2,4 MB por minuto sem parar.
+        conn.register_object_with_closures2(
+            SNI_PATH, sni, self._sni_call, self._sni_get, None)
+        conn.register_object_with_closures2(
+            MENU_PATH, menu, self._menu_call, self._menu_get, None)
         conn.call(WATCHER_NAME, "/StatusNotifierWatcher", WATCHER_NAME,
                   "RegisterStatusNotifierItem",
                   GLib.Variant("(s)", (self._bus_name,)), None,
