@@ -109,16 +109,12 @@ def _cli(args):
             print(f"ventoinhas  : CPU {st['fan_cpu']} rpm · GPU {st['fan_gpu']} rpm")
             print(f"temp. CPU   : {st['cpu_temp']:.0f} °C")
         else:                                  # --apply
-            backend.set_zones(st_zones(backend), backend.status()["brightness"])
+            backend.apply_profile()
             print("perfil aplicado")
     except Exception as e:                     # noqa: BLE001
         sys.exit(f"erro: {e}")
     finally:
         backend.close()
-
-
-def st_zones(backend):
-    return [tuple(c) for c in backend.status()["zones"]]
 
 
 def main():

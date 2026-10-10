@@ -320,6 +320,29 @@ def test_daemon_rejeita_arrays_invalidos_antes_de_mexer_no_hardware():
         obj._dispatch("SetAudioLevel", (0.5, [0.1] * 1000))
 
 
+def test_off_preserva_perfil_e_apply_profile_reacende():
+    from controlfanrgb import daemon
+
+    class Motor:
+        def stop(self): pass
+    class Teclado:
+        def __init__(self): self.apagou = False
+        def off(self): self.apagou = True
+    obj = daemon.Daemon.__new__(daemon.Daemon)
+    obj.engine = Motor()
+    obj.kb = Teclado()
+    obj._powered = True
+    obj.state = {"mode": "software", "software_effect": "Música"}
+    aplicados = []
+    obj._apply_state = lambda: aplicados.append(True)
+
+    obj._dispatch("Off", ())
+    assert obj.kb.apagou and not obj._powered
+    assert obj.state["software_effect"] == "Música"
+    obj._dispatch("ApplyProfile", ())
+    assert obj._powered and aplicados == [True]
+
+
 # --------------------------------------------- interruptor de energia ----
 def test_set_power_state_nao_dispara_o_proprio_handler():
     """O botão de power era de mão única: só apagava. Virou interruptor, e aí

@@ -118,6 +118,7 @@ class Daemon:
         self._last_fans = None
         self._last_turbo = None
         self._idle_active = False      # apagado por inatividade agora mesmo
+        self._powered = True           # Off é temporário; o perfil fica salvo
         self._conn = None
         self.loop = GLib.MainLoop()
 
@@ -178,6 +179,7 @@ class Daemon:
             colors = validation.zones(colors)
             brightness = validation.integer(brightness, 0, 100)
             self.engine.stop()
+            self._powered = True
             self.state.update(mode="zones", software_effect="",
                               zones=colors, brightness=brightness)
             self._apply_state()
@@ -190,6 +192,7 @@ class Daemon:
             direction = validation.integer(direction, 1, 2)
             color = validation.color(color)
             self.engine.stop()
+            self._powered = True
             self.state.update(mode="firmware", software_effect="",
                               firmware_mode=mode, speed=speed,
                               brightness=brightness,
@@ -201,6 +204,7 @@ class Daemon:
             if name not in themes.THEMES:
                 raise ValueError(f"tema desconhecido: {name}")
             self.engine.stop()
+            self._powered = True
             self.state.update(mode="zones", software_effect="",
                               zones=[list(c) for c in themes.THEMES[name]])
             self._apply_state()
@@ -210,19 +214,23 @@ class Daemon:
             if name not in self._effects:
                 raise ValueError(f"efeito desconhecido: {name}")
             self.state.update(mode="software", software_effect=name)
+            self._powered = True
             self.engine.start(self._effects[name](), self.state["brightness"])
             _save_state(self.state)
             self._emit("EffectChanged", GLib.Variant("(s)", (name,)))
 
         elif method == "StopEffect":
             self.engine.stop()
+            self._powered = True
             self.state.update(mode="zones", software_effect="")
             self._apply_state()
             self._emit("EffectChanged", GLib.Variant("(s)", ("",)))
 
         elif method == "SetBrightness":
             self.state["brightness"] = validation.integer(args[0], 0, 100)
-            if self.engine.running:                  # reinicia com o novo brilho
+            if not self._powered:
+                _save_state(self.state)
+            elif self.engine.running:                # reinicia com o novo brilho
                 name = self.state["software_effect"]
                 self.engine.start(self._effects[name](), self.state["brightness"])
                 _save_state(self.state)
@@ -232,8 +240,10 @@ class Daemon:
         elif method == "Off":
             self.engine.stop()
             self.kb.off()
+            self._powered = False
 
         elif method == "ApplyProfile":
+            self._powered = True
             self._apply_state()
 
         elif method == "SetTurbo":
@@ -293,7 +303,8 @@ class Daemon:
                 _log(f"não consegui apagar na inatividade: {e}")
         else:
             self._idle_active = False
-            self._apply_state()
+            if self._powered:
+                self._apply_state()
 
     # ------------------------------------------------------------- estado ---
     def _apply_state(self, attempt=0):
@@ -309,7 +320,7 @@ class Daemon:
         inválidos, então fechamos antes de tentar de novo.
         """
         st = self.state
-        if self._idle_active:
+        if self._idle_active or not self._powered:
             # Apagado por inatividade. Sem esta guarda, o poll do resume ou um
             # ApplyProfile reacenderia o teclado com a sessão ainda parada.
             return False
@@ -352,8 +363,12 @@ class Daemon:
         return {
             "mode": GLib.Variant("s", self.state["mode"]),
             "brightness": GLib.Variant("u", self.state["brightness"]),
+            "powered": GLib.Variant("b", self._powered),
             "effect": GLib.Variant("s", self.state["software_effect"]),
             "firmware_mode": GLib.Variant("u", self.state["firmware_mode"]),
+            "speed": GLib.Variant("u", self.state["speed"]),
+            "direction": GLib.Variant("u", self.state["direction"]),
+            "color": GLib.Variant("(uuu)", tuple(self.state["color"])),
             "zones": GLib.Variant("a(uuu)",
                                   [tuple(c) for c in self.state["zones"]]),
             "turbo": GLib.Variant("b", bool(turbo)),
