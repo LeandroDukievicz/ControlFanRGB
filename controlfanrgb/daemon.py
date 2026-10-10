@@ -22,7 +22,7 @@ import gi
 
 from gi.repository import Gio, GLib  # noqa: E402
 
-from . import effects, themes
+from . import effects, themes, validation
 from .hardware import Keyboard, KeyboardUnavailable, Sensors, Turbo
 
 BUS_NAME = "io.github.leandrodukievicz.ControlFanRGB1"
@@ -175,19 +175,25 @@ class Daemon:
     def _dispatch(self, method, args):
         if method == "SetZones":
             colors, brightness = args
+            colors = validation.zones(colors)
+            brightness = validation.integer(brightness, 0, 100)
             self.engine.stop()
             self.state.update(mode="zones", software_effect="",
-                              zones=[list(c) for c in colors],
-                              brightness=int(brightness))
+                              zones=colors, brightness=brightness)
             self._apply_state()
 
         elif method == "SetFirmwareEffect":
             mode, speed, brightness, direction, color = args
+            mode = validation.integer(mode, 0, 5)
+            speed = validation.integer(speed, 0, 9)
+            brightness = validation.integer(brightness, 0, 100)
+            direction = validation.integer(direction, 1, 2)
+            color = validation.color(color)
             self.engine.stop()
             self.state.update(mode="firmware", software_effect="",
-                              firmware_mode=int(mode), speed=int(speed),
-                              brightness=int(brightness),
-                              direction=int(direction), color=list(color))
+                              firmware_mode=mode, speed=speed,
+                              brightness=brightness,
+                              direction=direction, color=color)
             self._apply_state()
 
         elif method == "ApplyTheme":
@@ -215,7 +221,7 @@ class Daemon:
             self._emit("EffectChanged", GLib.Variant("(s)", ("",)))
 
         elif method == "SetBrightness":
-            self.state["brightness"] = int(args[0])
+            self.state["brightness"] = validation.integer(args[0], 0, 100)
             if self.engine.running:                  # reinicia com o novo brilho
                 name = self.state["software_effect"]
                 self.engine.start(self._effects[name](), self.state["brightness"])
@@ -240,7 +246,8 @@ class Daemon:
             return GLib.Variant("(b)", (new,))
 
         elif method == "SetIdleBlank":
-            enabled, timeout = bool(args[0]), max(15, int(args[1]))
+            enabled = bool(args[0])
+            timeout = validation.integer(args[1], 15, 86400)
             self.state.update(idle_blank=enabled, idle_timeout=timeout)
             if not enabled and self._idle_active:
                 # desligou a opção estando apagado: acende de volta na hora
@@ -253,7 +260,7 @@ class Daemon:
             self._set_idle(bool(args[0]))
 
         elif method == "SetAudioLevel":
-            effects.AUDIO.push(args[0], args[1])
+            effects.AUDIO.push(*validation.audio(args[0], args[1]))
 
         elif method == "GetStatus":
             return GLib.Variant("(a{sv})", (self._status(),))
@@ -393,13 +400,13 @@ class Daemon:
 
 # ---------------------------------------------------------------- estado ----
 def _load_state():
-    st = dict(DEFAULT_STATE)
     try:
         with open(STATE_PATH) as f:
-            st.update(json.load(f))
+            raw = json.load(f)
     except (OSError, ValueError):
-        pass
-    return st
+        raw = {}
+    return validation.normalize_state(
+        raw, DEFAULT_STATE, {cls.nome for cls in effects.SOFTWARE_EFFECTS})
 
 
 def _save_state(st):

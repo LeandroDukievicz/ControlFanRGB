@@ -2,6 +2,8 @@
 import json
 import os
 
+from . import effects, themes, validation
+
 DIR = os.path.join(
     os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "controlfanrgb")
 PATH = os.path.join(DIR, "config.json")
@@ -22,14 +24,29 @@ DEFAULT = {
 
 
 def load():
-    cfg = dict(DEFAULT)
     try:
         with open(PATH) as f:
-            cfg.update(json.load(f))
+            raw = json.load(f)
     except (OSError, ValueError):
-        pass
+        raw = {}
+    cfg = validation.normalize_state(
+        raw, DEFAULT, {cls.nome for cls in effects.SOFTWARE_EFFECTS})
+    if not isinstance(raw, dict):
+        raw = {}
+    if isinstance(raw.get("theme"), str) and raw["theme"] in themes.THEMES:
+        cfg["theme"] = raw["theme"]
+    if isinstance(raw.get("apply_on_start"), bool):
+        cfg["apply_on_start"] = raw["apply_on_start"]
+    painted = raw.get("key_colors")
+    cfg["key_colors"] = {}
+    if isinstance(painted, dict):
+        for key, value in list(painted.items())[:200]:
+            if isinstance(key, str):
+                try:
+                    cfg["key_colors"][key] = tuple(validation.color(value))
+                except ValueError:
+                    pass
     cfg["zones"] = [tuple(c) for c in cfg["zones"]]
-    cfg["key_colors"] = {k: tuple(v) for k, v in cfg.get("key_colors", {}).items()}
     cfg["color"] = tuple(cfg["color"])
     return cfg
 

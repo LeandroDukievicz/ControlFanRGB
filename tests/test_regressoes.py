@@ -292,6 +292,34 @@ def test_idle_watcher_pode_reiniciar_depois_de_stop():
     assert watcher._proxy is None
 
 
+def test_estado_salvo_invalido_recupera_campos_sem_perder_validos():
+    from controlfanrgb import daemon, validation
+
+    raw = {"mode": "software", "software_effect": "inválido",
+           "zones": [[1, 2, 3]], "brightness": 70,
+           "firmware_mode": 999, "idle_blank": True}
+    state = validation.normalize_state(raw, daemon.DEFAULT_STATE,
+                                       {cls.nome for cls in effects.SOFTWARE_EFFECTS})
+    assert state["mode"] == "zones"
+    assert state["zones"] == daemon.DEFAULT_STATE["zones"]
+    assert state["brightness"] == 70
+    assert state["firmware_mode"] == daemon.DEFAULT_STATE["firmware_mode"]
+    assert state["idle_blank"] is True
+
+
+def test_daemon_rejeita_arrays_invalidos_antes_de_mexer_no_hardware():
+    from controlfanrgb import daemon
+
+    class Motor:
+        def stop(self): raise AssertionError("não pode parar antes de validar")
+    obj = daemon.Daemon.__new__(daemon.Daemon)
+    obj.engine = Motor()
+    with pytest.raises(ValueError):
+        obj._dispatch("SetZones", ([[1, 2, 3]], 80))
+    with pytest.raises(ValueError):
+        obj._dispatch("SetAudioLevel", (0.5, [0.1] * 1000))
+
+
 # --------------------------------------------- interruptor de energia ----
 def test_set_power_state_nao_dispara_o_proprio_handler():
     """O botão de power era de mão única: só apagava. Virou interruptor, e aí

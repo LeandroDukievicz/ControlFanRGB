@@ -43,6 +43,7 @@ install_data(
     'controlfanrgb/perkey.py',
     'controlfanrgb/themes.py',
     'controlfanrgb/tray.py',
+    'controlfanrgb/validation.py',
     'controlfanrgb/window.py',
   ],
   install_dir: moduledir,
