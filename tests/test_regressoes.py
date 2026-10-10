@@ -6,6 +6,7 @@ hardware: o teclado, os sensores e o backend são dublês.
 """
 import threading
 import time
+import types
 
 import pytest
 from gi.repository import GLib
@@ -258,15 +259,15 @@ def test_set_power_state_nao_dispara_o_proprio_handler():
         def set_tooltip_text(self, t):
             self.tooltip = t
 
-    w = object.__new__(Window)
-    w.power_btn = BotaoFalso()
-    w._power_handler = 1
+    # Window é GObject e recusa object.__new__; o método usa só dois
+    # atributos, então vai desacoplado, com um objeto comum no lugar de self.
+    w = types.SimpleNamespace(power_btn=BotaoFalso(), _power_handler=1)
 
-    w._set_power_state(True)
+    Window._set_power_state(w, True)
     assert w.power_btn.get_active() is True
     assert w.power_btn.tooltip == "Acender o teclado"
 
-    w._set_power_state(False)
+    Window._set_power_state(w, False)
     assert w.power_btn.get_active() is False
     assert w.power_btn.tooltip == "Apagar o teclado"
 
@@ -284,10 +285,8 @@ def test_set_power_state_e_idempotente():
         def handler_unblock(self, _h): pass
         def set_tooltip_text(self, t): pass
 
-    w = object.__new__(Window)
-    w.power_btn = BotaoFalso()
-    w._power_handler = 1
-    w._set_power_state(False)      # já está nesse estado
+    w = types.SimpleNamespace(power_btn=BotaoFalso(), _power_handler=1)
+    Window._set_power_state(w, False)      # já está nesse estado
     assert w.power_btn.escritas == 0
 
 
