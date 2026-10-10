@@ -153,7 +153,9 @@ python3 run.py
 ```
 
 Sem o daemon instalado, a janela fala direto com o hardware (modo
-desenvolvimento) — o cabeçalho mostra em qual modo está.
+desenvolvimento) — o cabeçalho mostra em qual modo está. Se o daemon estiver
+instalado mas temporariamente indisponível, a janela espera sua recuperação
+para não disputar os mesmos devices.
 
 Dependências: `python3-gi`, `gir1.2-gtk-4.0`, `gir1.2-adw-1`, `python3-gi-cairo`
 e o módulo de kernel `facer` carregado.

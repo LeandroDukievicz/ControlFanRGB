@@ -85,7 +85,8 @@ class Window(Adw.ApplicationWindow):
             self.sidebar_list.append(row)
 
         tv = Adw.ToolbarView()
-        sub = ("daemon conectado" if self.backend.kind == "daemon"
+        sub = ("daemon conectado" if self.backend.kind == "daemon" and self._initial_status
+               else "daemon indisponível" if self.backend.kind == "daemon"
                else "modo direto (sem daemon)")
         tv.add_top_bar(Adw.HeaderBar(title_widget=Adw.WindowTitle(
             title="ControlFanRGB", subtitle=f"4 zonas · {sub}")))

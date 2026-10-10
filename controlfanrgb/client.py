@@ -9,6 +9,7 @@ Dois, com a mesma API:
 `get_backend()` escolhe sozinho. Assim a janela não sabe (nem precisa saber)
 se existe um daemon rodando.
 """
+import os
 import gi
 
 from gi.repository import Gio, GLib  # noqa: E402
@@ -32,12 +33,18 @@ class DaemonBackend:
                 Gio.BusType.SYSTEM,
                 Gio.DBusProxyFlags.DO_NOT_LOAD_PROPERTIES, None,
                 BUS_NAME, OBJ_PATH, BUS_NAME, None)
-            if proxy.get_name_owner() is None:
-                return None
-            proxy.call_sync("GetStatus", None, Gio.DBusCallFlags.NONE, 2000, None)
-            return cls(proxy)
         except GLib.Error:
             return None
+        try:
+            # A chamada também permite a ativação automática pelo barramento.
+            proxy.call_sync("GetStatus", None, Gio.DBusCallFlags.NONE, 2000, None)
+        except GLib.Error:
+            service = f"/usr/share/dbus-1/system-services/{BUS_NAME}.service"
+            if not os.path.exists(service):
+                return None
+            # Serviço instalado e temporariamente indisponível: manter o proxy
+            # evita que GUI/tray assumam os mesmos /dev enquanto ele reinicia.
+        return cls(proxy)
 
     def _call(self, method, variant=None, reply="()"):
         return self._proxy.call_sync(method, variant, Gio.DBusCallFlags.NONE,
