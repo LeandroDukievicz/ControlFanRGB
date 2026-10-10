@@ -77,16 +77,26 @@ class DaemonBackend:
         self._call("SetIdleState", GLib.Variant("(b)", (idle,)))
 
     def set_audio_level(self, level, bands):
-        """Assíncrono e sem esperar resposta, de propósito.
+        """Mensagem crua, sem resposta esperada.
 
-        São ~23 chamadas por segundo: um `call_sync` aqui bloquearia a loop do
-        tray em cada quadro de áudio. E perder um quadro é inócuo — o próximo
-        vem em 43 ms.
+        São ~22 por segundo: um `call_sync` bloquearia a loop do tray em cada
+        quadro de áudio, e perder um quadro é inócuo — o próximo vem em 43 ms.
+
+        Mas `proxy.call()` com callback None também não serve: ele registra
+        uma chamada pendente que ninguém colhe. Medido, enviando a 22/s:
+
+            proxy.call()                          +70 B por envio (+91 kB/min)
+            send_message(NO_REPLY_EXPECTED)        +0 B por envio
+
+        Era isso que fazia o tray crescer ~84 kB/min com o efeito de música.
         """
-        self._proxy.call(
-            "SetAudioLevel",
-            GLib.Variant("(dad)", (float(level), [float(b) for b in bands])),
-            Gio.DBusCallFlags.NO_AUTO_START, 500, None, None, None)
+        msg = Gio.DBusMessage.new_method_call(
+            BUS_NAME, OBJ_PATH, BUS_NAME, "SetAudioLevel")
+        msg.set_flags(Gio.DBusMessageFlags.NO_REPLY_EXPECTED)
+        msg.set_body(GLib.Variant(
+            "(dad)", (float(level), [float(b) for b in bands])))
+        self._proxy.get_connection().send_message(
+            msg, Gio.DBusSendMessageFlags.NONE)
 
     def set_turbo(self, on):
         self._call("SetTurbo", GLib.Variant("(b)", (on,)))

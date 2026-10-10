@@ -162,6 +162,38 @@ def test_push_audio_nao_envia_sem_dado_novo():
     assert t._audio is None, "o dado deveria ser consumido"
 
 
+# ------------------------------------------- envio de áudio sem resposta --
+def test_set_audio_level_nao_espera_resposta():
+    """Medido enviando a 22/s: `proxy.call()` com callback None retém 70 B por
+    envio, porque registra uma chamada pendente que ninguém colhe. Com
+    NO_REPLY_EXPECTED, zero."""
+    from gi.repository import Gio
+    from controlfanrgb.client import DaemonBackend
+
+    enviadas = []
+
+    class ConexaoFalsa:
+        def send_message(self, msg, flags):
+            enviadas.append(msg)
+
+    class ProxyFalso:
+        def get_connection(self):
+            return ConexaoFalsa()
+
+        def call(self, *a, **k):
+            raise AssertionError("não deveria usar proxy.call — ele retém")
+
+    b = object.__new__(DaemonBackend)
+    b._proxy = ProxyFalso()
+    b.set_audio_level(0.5, [0.1, 0.2, 0.3, 0.4])
+
+    assert len(enviadas) == 1
+    msg = enviadas[0]
+    assert msg.get_flags() & Gio.DBusMessageFlags.NO_REPLY_EXPECTED
+    assert msg.get_member() == "SetAudioLevel"
+    assert msg.get_body().unpack() == (0.5, [0.1, 0.2, 0.3, 0.4])
+
+
 # ----------------------------------------------- threads do motor ---------
 class EfeitoLento:
     nome = "lento"
