@@ -526,6 +526,73 @@ def test_set_power_state_e_idempotente():
     assert w.power_btn.escritas == 0
 
 
+# ------------------------------------- timeout de backlight do firmware ---
+def test_backlight_timeout_degrada_sem_o_atributo(monkeypatch):
+    """Kernel sem o módulo compilado, ou facer original: o atributo não
+    existe. Nada pode quebrar por causa disso."""
+    from controlfanrgb import hardware
+
+    monkeypatch.setattr(hardware, "BACKLIGHT_TIMEOUT_SYSFS", "/nao/existe")
+    assert hardware.BacklightTimeout.available() is False
+    assert hardware.BacklightTimeout.get() is None
+    with pytest.raises(hardware.KeyboardUnavailable):
+        hardware.BacklightTimeout.set(False)
+
+
+def _daemon_falso(estado, disponivel, atual, escritas):
+    """Daemon mínimo para exercitar só _apply_firmware_timeout."""
+    from controlfanrgb.daemon import Daemon
+
+    class Falso:
+        state = estado
+    d = Falso()
+    d._apply_firmware_timeout = Daemon._apply_firmware_timeout.__get__(d, Falso)
+    return d
+
+
+def test_apply_firmware_timeout_nao_escreve_se_ja_esta_certo(monkeypatch):
+    """É uma chamada WMI ao firmware. Reaplicar perfil acontece a cada troca
+    de cor; martelar o firmware junto seria errado."""
+    from controlfanrgb import daemon as D
+
+    escritas = []
+    monkeypatch.setattr(D.BacklightTimeout, "available", staticmethod(lambda: True))
+    monkeypatch.setattr(D.BacklightTimeout, "get", staticmethod(lambda: False))
+    monkeypatch.setattr(D.BacklightTimeout, "set",
+                        staticmethod(lambda v: escritas.append(v)))
+
+    d = _daemon_falso({"firmware_timeout": False}, True, False, escritas)
+    assert d._apply_firmware_timeout() is False
+    assert escritas == [], "escreveu sem precisar"
+
+
+def test_apply_firmware_timeout_escreve_quando_diverge(monkeypatch):
+    from controlfanrgb import daemon as D
+
+    escritas = []
+    monkeypatch.setattr(D.BacklightTimeout, "available", staticmethod(lambda: True))
+    monkeypatch.setattr(D.BacklightTimeout, "get", staticmethod(lambda: True))
+    monkeypatch.setattr(D.BacklightTimeout, "set",
+                        staticmethod(lambda v: escritas.append(v)))
+
+    d = _daemon_falso({"firmware_timeout": False}, True, True, escritas)
+    assert d._apply_firmware_timeout() is True
+    assert escritas == [False]
+
+
+def test_apply_firmware_timeout_e_noop_sem_suporte(monkeypatch):
+    from controlfanrgb import daemon as D
+
+    escritas = []
+    monkeypatch.setattr(D.BacklightTimeout, "available", staticmethod(lambda: False))
+    monkeypatch.setattr(D.BacklightTimeout, "set",
+                        staticmethod(lambda v: escritas.append(v)))
+
+    d = _daemon_falso({"firmware_timeout": False}, False, None, escritas)
+    assert d._apply_firmware_timeout() is False
+    assert escritas == []
+
+
 # ------------------------------------------ o motor não morre calado ------
 def test_engine_relata_a_morte_em_vez_de_sumir():
     """`except OSError: break` mudo escondia a thread do efeito morrendo: o

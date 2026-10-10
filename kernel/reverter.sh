@@ -1,10 +1,10 @@
 #!/bin/bash
-# Volta para o facer-1.0 original.
+# Volta para o facer-1.0 original, desfazendo o 1.2.
 set -euo pipefail
 [[ $EUID -eq 0 ]] || { echo "rode com sudo"; exit 1; }
 
-dkms uninstall -m facer -v 1.1 -k "$(uname -r)" 2>/dev/null || true
-dkms remove -m facer -v 1.1 --all 2>/dev/null || true
+dkms uninstall -m facer -v 1.2 -k "$(uname -r)" 2>/dev/null || true
+dkms remove -m facer -v 1.2 --all 2>/dev/null || true
 rm -f /etc/udev/rules.d/99-controlfanrgb.rules
 udevadm control --reload-rules
 

@@ -22,6 +22,7 @@ import time
 
 STATIC_DEV = "/dev/acer-gkbbl-static-0"
 TURBO_SYSFS = "/sys/devices/platform/acer-wmi/turbo"
+BACKLIGHT_TIMEOUT_SYSFS = "/sys/devices/platform/acer-wmi/backlight_timeout"
 DYN_DEV = "/dev/acer-gkbbl-0"
 ZONES = 4
 
@@ -214,6 +215,44 @@ def _read_int(path):
             return int(f.read().strip())
     except (OSError, ValueError):
         return None
+
+
+class BacklightTimeout:
+    """O apagamento automático que vive no firmware, não no nosso código.
+
+    O firmware apaga o backlight depois de ~30 s sem tecla pressionada, e as
+    escritas de cor por WMI **não** resetam esse contador: um efeito rodando a
+    30 fps continua escrevendo com o teclado apagado, e qualquer tecla acende
+    de volta na hora. Era a causa do "acende e apaga sozinho" que nenhuma
+    configuração do app resolvia.
+
+    Exige o módulo `facer` 1.2+ (o fork deste projeto). Nem o facer original
+    nem o acer-wmi da árvore do kernel expõem isto.
+    """
+
+    @staticmethod
+    def available():
+        return os.path.exists(BACKLIGHT_TIMEOUT_SYSFS)
+
+    @staticmethod
+    def get():
+        """True se o firmware apaga sozinho; None se o módulo não expõe."""
+        try:
+            with open(BACKLIGHT_TIMEOUT_SYSFS) as f:
+                return f.read().strip() == "1"
+        except OSError:
+            return None
+
+    @staticmethod
+    def set(on):
+        """`on=False` é o que mantém o teclado aceso de verdade."""
+        try:
+            with open(BACKLIGHT_TIMEOUT_SYSFS, "w") as f:
+                f.write("1" if on else "0")
+        except OSError as e:
+            raise KeyboardUnavailable(
+                "timeout de backlight indisponível — o módulo facer precisa "
+                "ser o 1.2+") from e
 
 
 class Turbo:

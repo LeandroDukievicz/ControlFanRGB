@@ -23,7 +23,8 @@ import gi
 from gi.repository import Gio, GLib  # noqa: E402
 
 from . import effects, themes, validation
-from .hardware import Keyboard, KeyboardUnavailable, Sensors, Turbo
+from .hardware import (BacklightTimeout, Keyboard, KeyboardUnavailable,
+                       Sensors, Turbo)
 
 BUS_NAME = "io.github.leandrodukievicz.ControlFanRGB1"
 OBJ_PATH = "/io/github/leandrodukievicz/ControlFanRGB1"
@@ -45,6 +46,10 @@ DEFAULT_STATE = {
     # mudar o comportamento de quem já usava o app.
     "idle_blank": False,
     "idle_timeout": 120,              # segundos
+    # Deixar o firmware apagar o teclado sozinho depois de ~30 s. Falso por
+    # padrão: quem instala este app quer que o app decida isso, e a opção da
+    # sessão (idle_blank) faz o mesmo trabalho de forma configurável.
+    "firmware_timeout": False,
 }
 
 INTROSPECTION = """
@@ -82,6 +87,9 @@ INTROSPECTION = """
     <method name="SetIdleBlank">
       <arg type="b" name="enabled" direction="in"/>
       <arg type="u" name="timeout" direction="in"/>
+    </method>
+    <method name="SetFirmwareTimeout">
+      <arg type="b" name="enabled" direction="in"/>
     </method>
     <method name="SetIdleState">
       <arg type="b" name="idle" direction="in"/>
@@ -133,6 +141,11 @@ class Daemon:
             GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, self._quit)
 
         GLib.timeout_add_seconds(POLL_SECONDS, self._poll)
+        # O sysfs do firmware nasce junto com o device da plataforma, que o
+        # módulo cria de forma assíncrona — mesma corrida dos /dev. Uma
+        # tentativa por segundo até aparecer, no máximo dez.
+        self._firmware_tries = 0
+        GLib.timeout_add_seconds(1, self._try_firmware_timeout)
         GLib.idle_add(self._apply_state)
         self.loop.run()
 
@@ -163,6 +176,9 @@ class Daemon:
         going_to_sleep = params.unpack()[0]
         if not going_to_sleep:                       # acordando
             GLib.timeout_add(1200, self._apply_state)
+            # O firmware pode voltar ao padrão ao religar; é idempotente, só
+            # escreve se tiver divergido.
+            GLib.timeout_add(1500, self._apply_firmware_timeout)
 
     def _on_call(self, _conn, _sender, _path, _iface, method, params, inv):
         try:
@@ -266,6 +282,11 @@ class Daemon:
             else:
                 _save_state(self.state)
 
+        elif method == "SetFirmwareTimeout":
+            self.state["firmware_timeout"] = bool(args[0])
+            self._apply_firmware_timeout()
+            _save_state(self.state)
+
         elif method == "SetIdleState":
             self._set_idle(bool(args[0]))
 
@@ -278,6 +299,16 @@ class Daemon:
         else:
             raise ValueError(f"método desconhecido: {method}")
         return None
+
+    def _try_firmware_timeout(self):
+        self._firmware_tries += 1
+        if BacklightTimeout.available():
+            self._apply_firmware_timeout()
+            return False
+        if self._firmware_tries >= 10:
+            _log("o módulo não expõe backlight_timeout — precisa do facer 1.2+")
+            return False
+        return True
 
     def _on_engine_error(self, erro):
         """A thread do efeito morreu. Chamado da thread dela, não da loop."""
@@ -309,6 +340,36 @@ class Daemon:
             self._idle_active = False
             if self._powered:
                 self._apply_state()
+
+    # ------------------------------------------------- timeout do firmware ---
+    def _apply_firmware_timeout(self):
+        """Alinha o timeout de backlight do firmware com a preferência.
+
+        Separado de `_apply_state` de propósito. Aplicar perfil acontece a
+        cada troca de cor; isto é uma chamada WMI ao firmware e não tem por
+        que repetir a cada quadro ou a cada tema. Lê antes e só escreve se
+        divergir.
+
+        Degrada em silêncio se o atributo não existir: num kernel sem o módulo
+        compilado, ou com o facer original, o resto do app continua inteiro.
+        """
+        if not BacklightTimeout.available():
+            return False
+
+        desejado = bool(self.state.get("firmware_timeout"))
+        atual = BacklightTimeout.get()
+        if atual is None or atual == desejado:
+            return False
+
+        try:
+            BacklightTimeout.set(desejado)
+        except KeyboardUnavailable as e:
+            _log(f"não consegui ajustar o timeout de backlight: {e}")
+            return False
+
+        _log(f"timeout de backlight do firmware: "
+             f"{'ligado' if desejado else 'desligado'}")
+        return True
 
     # ------------------------------------------------------------- estado ---
     def _apply_state(self, attempt=0, persist=True):
@@ -398,6 +459,10 @@ class Daemon:
             # Diferença importante para diagnóstico: `effect` é o que o estado
             # diz que deveria estar rodando; `engine_running` é se a thread
             # está de fato viva. Divergência entre os dois é o bug.
+            "firmware_timeout": GLib.Variant(
+                "b", bool(self.state.get("firmware_timeout"))),
+            "firmware_timeout_available": GLib.Variant(
+                "b", BacklightTimeout.available()),
             "engine_running": GLib.Variant("b", self.engine.running),
             "engine_error": GLib.Variant(
                 "s", self.engine.last_error or ""),

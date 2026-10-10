@@ -16,7 +16,8 @@ from gi.repository import Gio, GLib  # noqa: E402
 
 from . import effects, themes
 from .daemon import BUS_NAME, OBJ_PATH
-from .hardware import Keyboard, KeyboardUnavailable, Sensors, Turbo
+from .hardware import (BacklightTimeout, Keyboard, KeyboardUnavailable,
+                       Sensors, Turbo)
 
 
 class DaemonBackend:
@@ -86,6 +87,9 @@ class DaemonBackend:
     def set_idle_state(self, idle):
         self._call("SetIdleState", GLib.Variant("(b)", (idle,)))
 
+    def set_firmware_timeout(self, enabled):
+        self._call("SetFirmwareTimeout", GLib.Variant("(b)", (enabled,)))
+
     def set_audio_level(self, level, bands):
         """Mensagem crua, sem resposta esperada.
 
@@ -137,6 +141,7 @@ class LocalBackend:
         self._idle_timeout = 120
         self._idle_active = False
         self._powered = True
+        self._firmware_timeout = False
 
     def status(self):
         fans = self.sensors.fans() or (0, 0)
@@ -158,6 +163,8 @@ class LocalBackend:
             "idle_blank": self._idle_blank,
             "idle_timeout": self._idle_timeout,
             "idle_active": self._idle_active,
+            "firmware_timeout": self._firmware_timeout,
+            "firmware_timeout_available": BacklightTimeout.available(),
             "engine_running": self.engine.running,
             "engine_error": self.engine.last_error or "",
             "audio_fresh": effects.AUDIO.fresh,
@@ -226,6 +233,11 @@ class LocalBackend:
         self._idle_timeout = max(15, int(timeout))
         if not self._idle_blank and self._idle_active:
             self.set_idle_state(False)
+
+    def set_firmware_timeout(self, enabled):
+        self._firmware_timeout = bool(enabled)
+        if BacklightTimeout.available():
+            BacklightTimeout.set(self._firmware_timeout)
 
     def set_idle_state(self, idle):
         if idle == self._idle_active:

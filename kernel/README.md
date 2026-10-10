@@ -1,5 +1,9 @@
 # Patch do módulo `facer`
 
+> Versão **1.2**. O DKMS `facer-1.1` continua no disco para rollback; o
+> `reverter.sh` volta direto ao `1.0` original.
+
+
 O ControlFanRGB precisa de duas coisas que o módulo
 [`facer`](https://github.com/JafarAkhondali/acer-predator-turbo-and-rgb-keyboard-linux-module)
 não entrega:
@@ -20,6 +24,27 @@ não entrega:
 
 Não há conflito entre as duas: a tecla de turbo é a `key_num 0x4` e a de perfil
 térmico é a `0x5`, tratadas separadamente.
+
+3. **Desligar o timeout de backlight do firmware.** O firmware apaga o
+   backlight depois de ~30 s sem tecla pressionada, e as escritas de cor por
+   WMI **não** resetam esse contador: um efeito rodando a 30 fps continua
+   escrevendo com o teclado apagado, e qualquer tecla acende de volta na
+   hora. Era a causa de "acende e apaga sozinho" que nenhuma configuração do
+   app resolvia. O patch expõe
+   `/sys/devices/platform/acer-wmi/backlight_timeout` (0/1).
+
+   Vai por `WMID_GUID3`, método 1 (set) e 2 (get) — GUID que o `facer` já usa
+   para outras coisas, mas com um `u64` cru em vez da struct dos helpers
+   existentes. Os valores de comando são os mesmos que o Linuwu-Sense usa.
+
+   Uma ressalva na leitura: antes de a opção ter sido escrita alguma vez, o
+   PH315-54 responde `0x1E0000000000` — o `0x1E` são os 30 segundos, sem o
+   flag `0x80000` que os valores escritos carregam. Em vez de falhar a leitura
+   numa máquina que nunca foi configurada, o campo de segundos vale como
+   verdade. Depois de uma escrita explícita, o firmware passa a responder as
+   constantes documentadas.
+
+   Medido: a configuração mora na EC e **sobrevive à recarga do módulo**.
 
 ## Aplicar
 

@@ -1,0 +1,221 @@
+diff --git a/src/facer.c b/src/facer.c
+index 209917e..f3dfe7a 100644
+--- a/src/facer.c
++++ b/src/facer.c
+@@ -57,6 +57,11 @@
+ #include <linux/unaligned.h>
+ #endif
+ 
++/* kstrtobool() moved out of linux/kernel.h into its own header in 5.19 */
++#if RTLNX_VER_MIN(5, 19, 0)
++#include <linux/kstrtox.h>
++#endif
++
+ MODULE_AUTHOR("Carlos Corbacho");
+ MODULE_DESCRIPTION("Acer Laptop WMI Extras Driver");
+ MODULE_LICENSE("GPL");
+@@ -98,6 +103,30 @@ MODULE_LICENSE("GPL");
+ #define ACER_WMID_SET_GAMING_MISC_SETTING_METHODID 22
+ #define ACER_WMID_GET_GAMING_MISC_SETTING_METHODID 23
+ 
++/* Generic set/get on WMID_GUID3, as used by the backlight timeout below. */
++#define ACER_WMID_SET_FUNCTION			1
++#define ACER_WMID_GET_FUNCTION			2
++
++/*
++ * Keyboard backlight timeout.
++ *
++ * The firmware blanks the keyboard backlight after roughly a minute without a
++ * keypress, and the WMI colour writes do not reset that counter: an animation
++ * running at 30 fps keeps writing while the keyboard sits dark, and a
++ * keypress brings it straight back. PredatorSense exposes this as a setting
++ * on Windows; there was no way to reach it from Linux.
++ *
++ * Same interface Linuwu-Sense uses for it: WMID_GUID3, method 1 to set and 2
++ * to get, with a bare u64 as the input buffer.
++ */
++#define ACER_WMID_BACKLIGHT_TIMEOUT_GET		0x88401ULL
++#define ACER_WMID_BACKLIGHT_TIMEOUT_ON		0x1E0000088402ULL
++#define ACER_WMID_BACKLIGHT_TIMEOUT_OFF		0x88402ULL
++#define ACER_WMID_BACKLIGHT_TIMEOUT_ON_READ	0x1E0000080000ULL
++#define ACER_WMID_BACKLIGHT_TIMEOUT_OFF_READ	0x80000ULL
++/* Seconds field in the reading, e.g. 0x1E = 30 s. */
++#define ACER_WMID_BACKLIGHT_TIMEOUT_SECS	GENMASK_ULL(47, 40)
++
+ #define ACER_GAMING_MISC_SETTING_STATUS_MASK GENMASK_ULL(7, 0)
+ #define ACER_GAMING_MISC_SETTING_INDEX_MASK GENMASK_ULL(7, 0)
+ #define ACER_GAMING_MISC_SETTING_VALUE_MASK GENMASK_ULL(15, 8)
+@@ -578,6 +607,14 @@ static struct quirk_entry quirk_acer_predator_ph315_54 = {
+ 	.turbo = 1,
+ 	.cpu_fans = 1,
+ 	.gpu_fans = 1,
++	/*
++	 * This model answers the Predator Sense v4 fan speed queries, but the
++	 * quirk did not enable the capability. Setting it here gets
++	 * ACER_CAP_FAN_SPEED_READ (and ACER_CAP_PLATFORM_PROFILE) alongside
++	 * turbo, whereas the predator_v4=1 module parameter replaces the whole
++	 * quirk and so trades turbo away for the readings.
++	 */
++	.predator_v4 = 1,
+ };
+ 
+ static struct quirk_entry quirk_acer_predator_ph315_55 = {
+@@ -3711,10 +3748,158 @@ static void acer_platform_shutdown(struct platform_device *device)
+ 		set_u32(LED_OFF, ACER_CAP_MAILLED);
+ }
+ 
++/*
++ * Raw u64 call on WMID_GUID3. The existing helpers on this GUID pass a
++ * struct; the backlight timeout wants a plain value, so it gets its own.
++ */
++static acpi_status WMID_apge_execute_u64(u32 method_id, u64 in, u64 *out)
++{
++	struct acpi_buffer input = { (acpi_size)sizeof(u64), (void *)&in };
++	struct acpi_buffer result = { ACPI_ALLOCATE_BUFFER, NULL };
++	union acpi_object *obj;
++	u64 tmp = 0;
++	acpi_status status;
++
++	status = wmi_evaluate_method(WMID_GUID3, 0, method_id, &input, &result);
++	if (ACPI_FAILURE(status))
++		return status;
++
++	obj = result.pointer;
++	if (obj) {
++		if (obj->type == ACPI_TYPE_BUFFER) {
++			if (obj->buffer.length == sizeof(u32))
++				tmp = *((u32 *)obj->buffer.pointer);
++			else if (obj->buffer.length == sizeof(u64))
++				tmp = *((u64 *)obj->buffer.pointer);
++		} else if (obj->type == ACPI_TYPE_INTEGER) {
++			tmp = (u64)obj->integer.value;
++		}
++	}
++
++	if (out)
++		*out = tmp;
++
++	kfree(result.pointer);
++	return AE_OK;
++}
++
++static ssize_t backlight_timeout_show(struct device *dev,
++				      struct device_attribute *attr, char *buf)
++{
++	acpi_status status;
++	u64 result;
++
++	status = WMID_apge_execute_u64(ACER_WMID_GET_FUNCTION,
++				       ACER_WMID_BACKLIGHT_TIMEOUT_GET, &result);
++	if (ACPI_FAILURE(status))
++		return -EIO;
++
++	/*
++	 * The two constants above are what the firmware answers once the
++	 * setting has been written at least once. Before that, a PH315-54
++	 * answers 0x1E0000000000: the 0x1E is the timeout in seconds, without
++	 * the 0x80000 flag the written values carry. Treat the presence of a
++	 * non-zero timeout field as "enabled" instead of failing the read.
++	 */
++	if (result == ACER_WMID_BACKLIGHT_TIMEOUT_ON_READ)
++		return sysfs_emit(buf, "1\n");
++	if (result == ACER_WMID_BACKLIGHT_TIMEOUT_OFF_READ)
++		return sysfs_emit(buf, "0\n");
++
++	return sysfs_emit(buf, "%d\n",
++			  FIELD_GET(ACER_WMID_BACKLIGHT_TIMEOUT_SECS, result) ? 1 : 0);
++}
++
++static ssize_t backlight_timeout_store(struct device *dev,
++				       struct device_attribute *attr,
++				       const char *buf, size_t count)
++{
++	acpi_status status;
++	u64 result;
++	bool on;
++	int err;
++
++	err = kstrtobool(buf, &on);
++	if (err)
++		return err;
++
++	status = WMID_apge_execute_u64(ACER_WMID_SET_FUNCTION,
++				       on ? ACER_WMID_BACKLIGHT_TIMEOUT_ON
++					  : ACER_WMID_BACKLIGHT_TIMEOUT_OFF,
++				       &result);
++	if (ACPI_FAILURE(status))
++		return -EIO;
++
++	return count;
++}
++static DEVICE_ATTR_RW(backlight_timeout);
++
++/*
++ * Userspace interface for turbo mode.
++ *
++ * acer_toggle_turbo() was only reachable from the chassis turbo key handler
++ * (WMID_GAMING_TURBO_KEY_EVENT, key_num 0x4). Without this, an application
++ * has no way to enable turbo, nor to tell whether it is currently on.
++ *
++ *   /sys/devices/platform/acer-wmi/turbo   0 = off, 1 = on
++ *
++ * Writing the value turbo is already in is a no-op, so the attribute is
++ * idempotent. The physical key toggles the same turbo_state, so reads stay
++ * in sync with it.
++ */
++static ssize_t turbo_show(struct device *dev,
++			  struct device_attribute *attr, char *buf)
++{
++	return sysfs_emit(buf, "%d\n", turbo_state);
++}
++
++static ssize_t turbo_store(struct device *dev, struct device_attribute *attr,
++			   const char *buf, size_t count)
++{
++	bool on;
++	int err;
++
++	err = kstrtobool(buf, &on);
++	if (err)
++		return err;
++
++	if (on != !!turbo_state)
++		acer_toggle_turbo();
++
++	return count;
++}
++static DEVICE_ATTR_RW(turbo);
++
++static struct attribute *acer_gaming_attrs[] = {
++	&dev_attr_turbo.attr,
++	&dev_attr_backlight_timeout.attr,
++	NULL,
++};
++
++static umode_t acer_gaming_attr_visible(struct kobject *kobj,
++					struct attribute *attr, int n)
++{
++	if (attr == &dev_attr_turbo.attr)
++		return has_cap(ACER_CAP_TURBO_OC) ? attr->mode : 0;
++
++	if (attr == &dev_attr_backlight_timeout.attr)
++		return wmi_has_guid(WMID_GUID3) ? attr->mode : 0;
++
++	return attr->mode;
++}
++
++static const struct attribute_group acer_gaming_attr_group = {
++	.attrs = acer_gaming_attrs,
++	.is_visible = acer_gaming_attr_visible,
++};
++
++__ATTRIBUTE_GROUPS(acer_gaming_attr);
++
+ static struct platform_driver acer_platform_driver = {
+ 		.driver = {
+ 				.name = "acer-wmi",
+ 				.pm = &acer_pm,
++				.dev_groups = acer_gaming_attr_groups,
+ 		},
+ 		.probe = acer_platform_probe,
+ 		#if RTLNX_VER_MIN(6, 14, 0)

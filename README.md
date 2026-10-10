@@ -19,6 +19,9 @@ Tudo abaixo funciona e foi testado neste hardware (Predator PH315-54):
   suave
 - Chave **Sempre aceso** ou apagar o teclado sozinho depois de N minutos
   parado
+- **Desliga o apagamento automático do firmware**, que apagava o teclado
+  depois de ~30 s sem tecla pressionada e ignorava as escritas de cor — era o
+  motivo de o teclado "apagar sozinho" mesmo com um efeito rodando
 - **Modo turbo** ligar/desligar, pela interface e pelo CLI
 - **RPM das duas ventoinhas** e temperatura da CPU, ao vivo
 
