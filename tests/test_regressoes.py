@@ -258,6 +258,41 @@ def test_engine_stop_sem_start_nao_quebra():
     assert motor.running is False
 
 
+def test_engine_serializa_escritas_ao_trocar_efeito_bloqueado():
+    entrou = threading.Event()
+    liberar = threading.Event()
+    escritas = []
+    simultaneas = 0
+    maximo = 0
+    class Teclado:
+        def set_zones(self, colors, brightness):
+            nonlocal simultaneas, maximo
+            simultaneas += 1
+            maximo = max(maximo, simultaneas)
+            try:
+                escritas.append(colors[0])
+                if len(escritas) == 1:
+                    entrou.set()
+                    liberar.wait(3)
+            finally:
+                simultaneas -= 1
+    class Efeito:
+        def __init__(self, cor): self.cor = cor
+        def frame(self, t, sensors): return [self.cor] * 4
+    motor = effects.Engine(Teclado(), None)
+    motor.start(Efeito((1, 1, 1)))
+    assert entrou.wait(2)
+    motor.start(Efeito((2, 2, 2)))
+    liberar.set()
+    deadline = time.monotonic() + 2
+    while len(escritas) < 2 and time.monotonic() < deadline:
+        time.sleep(.01)
+    motor.stop()
+    assert maximo == 1
+    assert escritas[0] == (1, 1, 1)
+    assert escritas[1] == (2, 2, 2)
+
+
 def test_keyboard_fecha_primeiro_fd_se_segundo_falhar(monkeypatch):
     from controlfanrgb import hardware
 

@@ -231,6 +231,7 @@ class Engine:
         self._on_frame = on_frame
         self._thread = None
         self._stop = threading.Event()
+        self._io_lock = threading.Lock()
         self.current = None
         self.last_warning = None
 
@@ -250,6 +251,7 @@ class Engine:
         sai sozinha na próxima verificação.
         """
         self.stop()
+        self.last_warning = None
         self.current = effect
         stop = threading.Event()
         self._stop = stop
@@ -277,7 +279,10 @@ class Engine:
             t = time.perf_counter() - t0
             try:
                 colors = effect.frame(t, self._sensors)
-                self._kb.set_zones(colors, brightness)
+                with self._io_lock:
+                    if stop.is_set():
+                        break
+                    self._kb.set_zones(colors, brightness)
             except OSError:
                 break          # device sumiu (módulo descarregado) — sai limpo
             if self._on_frame:
