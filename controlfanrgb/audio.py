@@ -37,6 +37,34 @@ BAND_GATE = 0.002
 # 100 e 200 Hz pesa o mesmo que entre 3 k e 6 k.
 BANDS = ((20, 160), (160, 800), (800, 3200), (3200, 16000))
 
+# ---------------------------------------------------- dinâmica da resposta --
+# O ganho automático normaliza cada banda pelo próprio pico recente. Só isso
+# não basta: tudo tende a 1 e as quatro zonas ficam no máximo o tempo todo —
+# que foi exatamente o sintoma de "sem dinamicidade" (medido com música real:
+# bandas em 0,75 / 0,89 / 0,86 / 0,95, praticamente coladas).
+#
+# CLAMP é o expansor que resolve: o que está abaixo dele vira 0 e o resto é
+# reescalado para 0..1. É ele que cria o contraste entre a batida e o resto.
+# Os valores vêm de uma varredura medida com uma faixa de batida a 2,2 Hz,
+# olhando mediana, desvio padrão e quanto tempo a zona passa baixa:
+#
+#   clamp release  mediana  desvio   max   %<0,25
+#    0,35   0,12     0,63    0,198   0,97     1,2   <- sem dinâmica, tudo aceso
+#    0,50   0,25     0,39    0,315   0,99    40,6   <- escolhido
+#    0,50   0,40     0,20    0,337   0,99    56,6   <- escuro mais da metade
+#
+# Um release baixo era o defeito principal: 0,12 por quadro dá constante de
+# ~360 ms, e a batida tem período de 455 ms, então o envelope não descia entre
+# as batidas e tudo virava um borrão claro.
+CLAMP = 0.50
+CURVE = 0.5                  # expoente sobre a potência normalizada
+PEAK_DECAY = 0.96            # ~1 s de memória (antes 0,99 ≈ 3 s, grudava alto)
+
+# Envelope por banda: sobe rápido para a batida estalar, cai mais devagar para
+# dar o tombo — mas não tão devagar que apague o contraste.
+ATTACK = 0.60
+RELEASE = 0.25
+
 
 class Sampler:
     """Lê o monitor do sink e chama `on_data(level, bands)` ~23 vezes/s.
@@ -127,6 +155,8 @@ class Sampler:
         # acendem. Medido com tons puros: banda única dava 1,00 no grave e
         # 0,11 no agudo; por banda, cada zona reage ao seu próprio conteúdo.
         peaks = np.full(len(BANDS), 1e-3, dtype=np.float64)
+        env = np.zeros(len(BANDS), dtype=np.float64)
+        total_peak = 1e-3
 
         while not self._stop.is_set():
             raw = self._read_exact(self._proc.stdout, self._chunk * 2)
@@ -137,7 +167,10 @@ class Sampler:
             rms = float(np.sqrt(np.mean(x * x)))
 
             if rms < SILENCE_RMS:
-                self._emit(0.0, [0.0, 0.0, 0.0, 0.0])
+                # Decai o envelope em vez de cortar para zero: um corte seco
+                # faz o teclado piscar nas pausas da música.
+                env *= (1.0 - RELEASE)
+                self._emit(0.0, env.tolist())
                 continue
 
             # Soma de potência, não média: a média divide pela quantidade de
@@ -149,11 +182,26 @@ class Sampler:
             energy = np.array(
                 [float(power[i].sum()) if i.size else 0.0 for i in idx])
             energy[energy < energy.max() * BAND_GATE] = 0.0
-            peaks = np.maximum(peaks * 0.99, np.maximum(energy, 1e-3))
-            # Raiz quarta da potência (= raiz quadrada da amplitude) porque a
-            # percepção de brilho não é linear: sem isso só os picos aparecem.
-            bands = np.minimum(1.0, (energy / peaks) ** 0.25).tolist()
-            self._emit(min(1.0, rms * 8.0), bands)
+            peaks = np.maximum(peaks * PEAK_DECAY, np.maximum(energy, 1e-3))
+
+            norm = np.minimum(1.0, (energy / peaks) ** CURVE)
+            # Expansor: rodapé a zero e o resto reescalado. É o que separa a
+            # batida do ruído de fundo em vez de deixar tudo aceso.
+            norm = np.clip((norm - CLAMP) / (1.0 - CLAMP), 0.0, 1.0)
+
+            rising = norm > env
+            env = np.where(rising,
+                           env + (norm - env) * ATTACK,
+                           env + (norm - env) * RELEASE)
+
+            # O nível geral recebe o mesmo tratamento. Antes era rms*8, que
+            # saturava em 1,0 em qualquer música e não informava nada.
+            total = float(energy.sum())
+            total_peak = max(total_peak * PEAK_DECAY, total, 1e-3)
+            level = min(1.0, (total / total_peak) ** CURVE)
+            level = max(0.0, (level - CLAMP) / (1.0 - CLAMP))
+
+            self._emit(level, env.tolist())
 
         if not self._stop.is_set():
             self.last_error = "pw-record encerrou sozinho"

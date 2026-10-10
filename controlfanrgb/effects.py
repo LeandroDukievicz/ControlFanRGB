@@ -172,22 +172,48 @@ class Music:
     # Uma cor por banda, da esquerda para a direita do teclado.
     HUES = (0.95, 0.78, 0.50, 0.33)     # rosa, violeta, ciano, verde
 
-    def frame(self, t, sensors):
-        level, bands = AUDIO.read()
+    # O teclado nunca fica abaixo disto reagindo, e respira nesta faixa quando
+    # não há som. A versão anterior caía para 0,05 no silêncio — ~12/255, que
+    # na prática é preto, e dava a impressão de o teclado ter desligado.
+    MIN_V = 0.20
+    IDLE_V = (0.24, 0.46)
 
-        if not AUDIO.fresh:
-            # Ninguém está amostrando (tray desligado, ou nada tocando ainda).
-            # Uma respiração fraca comunica "esperando" melhor que apagado.
-            v = 0.07 + 0.06 * (0.5 + 0.5 * math.sin(t * 1.6))
-            return [hsv(0.58, 0.55, v)] * 4
+    # Entrar no modo reativo é rápido; voltar ao repouso é lento, para uma
+    # pausa curta entre faixas não derrubar o efeito para a respiração.
+    TO_REACTIVE = 0.30
+    TO_CALM = 0.025
+    ACTIVE_AT = 0.04                    # acima disto há som de verdade
+
+    def __init__(self):
+        self._calm = 1.0                # 1 = respirando, 0 = reagindo
+
+    def frame(self, t, sensors):
+        # read() já devolve zeros quando ninguém está amostrando, então
+        # "sem tray" e "sem som" convergem para a mesma respiração — o que o
+        # usuário vê é um teclado aceso e calmo nos dois casos.
+        level, bands = AUDIO.read()
+        atividade = max(bands) if bands else 0.0
+
+        alvo = 0.0 if atividade > self.ACTIVE_AT else 1.0
+        taxa = self.TO_CALM if alvo > self._calm else self.TO_REACTIVE
+        self._calm += (alvo - self._calm) * taxa
 
         out = []
         for z in range(4):
             e = bands[z] if z < len(bands) else level
-            v = 0.05 + 0.95 * e
+
+            v_react = self.MIN_V + (1.0 - self.MIN_V) * e
             # Satura menos no pico: o brilho "estoura" para o branco em vez de
             # saturar na cor e perder a sensação de ataque.
-            s = 1.0 - 0.4 * e
+            s_react = 1.0 - 0.45 * e
+
+            fase = t * 1.1 - z * 0.55     # defasada, para não pulsar em bloco
+            v_idle = self.IDLE_V[0] + (self.IDLE_V[1] - self.IDLE_V[0]) * (
+                0.5 + 0.5 * math.sin(fase))
+
+            calm = self._calm
+            v = v_react * (1.0 - calm) + v_idle * calm
+            s = s_react * (1.0 - calm) + 0.85 * calm
             out.append(hsv(self.HUES[z] + 0.03 * math.sin(t * 0.3), s, v))
         return out
 
@@ -206,17 +232,29 @@ class Engine:
         self._thread = None
         self._stop = threading.Event()
         self.current = None
+        self.last_warning = None
 
     @property
     def running(self):
         return self._thread is not None and self._thread.is_alive()
 
     def start(self, effect, brightness=100):
+        """Troca o efeito em execução.
+
+        Cada thread recebe o **seu** Event de parada, em vez de todas
+        compartilharem `self._stop`. Antes, `stop()` fazia join com timeout de
+        1 s e seguia em frente; se a thread antiga não tivesse morrido (presa
+        numa escrita ao /dev, por exemplo), o `clear()` seguinte a
+        ressuscitava e duas threads passavam a escrever no teclado ao mesmo
+        tempo. Com um Event por thread, a antiga continua com o dela marcado e
+        sai sozinha na próxima verificação.
+        """
         self.stop()
         self.current = effect
-        self._stop.clear()
+        stop = threading.Event()
+        self._stop = stop
         self._thread = threading.Thread(
-            target=self._loop, args=(effect, brightness), daemon=True)
+            target=self._loop, args=(effect, brightness, stop), daemon=True)
         self._thread.start()
 
     def stop(self):
@@ -224,13 +262,18 @@ class Engine:
             self.current = None
             return
         self._stop.set()
-        self._thread.join(timeout=1.0)
-        self._thread = None
+        thread, self._thread = self._thread, None
+        thread.join(timeout=1.0)
+        if thread.is_alive():
+            # Não dá para matar uma thread em Python; ela sai sozinha porque
+            # o Event dela ficou marcado. Fica registrado para não virar um
+            # mistério se acontecer.
+            self.last_warning = "a thread do efeito não terminou em 1 s"
         self.current = None
 
-    def _loop(self, effect, brightness):
+    def _loop(self, effect, brightness, stop):
         t0 = time.perf_counter()
-        while not self._stop.is_set():
+        while not stop.is_set():
             t = time.perf_counter() - t0
             try:
                 colors = effect.frame(t, self._sensors)
@@ -239,4 +282,4 @@ class Engine:
                 break          # device sumiu (módulo descarregado) — sai limpo
             if self._on_frame:
                 self._on_frame(colors)
-            self._stop.wait(1 / FPS)
+            stop.wait(1 / FPS)

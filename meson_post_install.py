@@ -13,6 +13,7 @@ if os.environ.get("DESTDIR"):
     sys.exit(0)
 
 for cmd in (
+    ["gtk-update-icon-cache", "-qtf", "/usr/share/icons/hicolor"],
     ["systemctl", "daemon-reload"],
     ["systemctl", "--global", "daemon-reload"],
     ["udevadm", "control", "--reload-rules"],

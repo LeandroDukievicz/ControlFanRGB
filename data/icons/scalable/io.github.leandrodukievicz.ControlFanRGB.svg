@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Ícone do ControlFanRGB.
+
+  Leitura pretendida: teclado visto de cima com a luz das 4 zonas vazando por
+  baixo. As cores são as do tema Vapor, perfil padrão do app, e a ordem das
+  faixas é a das 4 zonas físicas, da esquerda para a direita.
+
+  Oito colunas de teclas, duas por zona — menos que isso não lê como teclado.
+  O passo da grade é calculado para as margens ficarem iguais dos dois lados;
+  a versão anterior tinha uma tecla estreita sobrando na borda que parecia
+  defeito. A barra de espaço existe para não virar uma grade abstrata.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="fundo" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#333a56"/>
+      <stop offset="1" stop-color="#0f111a"/>
+    </linearGradient>
+    <linearGradient id="placa" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5b6486"/>
+      <stop offset="0.08" stop-color="#3d4459"/>
+      <stop offset="1" stop-color="#191d2b"/>
+    </linearGradient>
+    <!-- O brilho desbota para baixo. Uma máscara radial foi tentada antes e
+         apagava a luz quase toda; a linear é a que lê como vazamento. -->
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="mGlow">
+      <rect x="6" y="85" width="116" height="31" fill="url(#fade)"/>
+    </mask>
+    <filter id="blur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4.5"/>
+    </filter>
+  </defs>
+
+  <rect x="4" y="4" width="120" height="120" rx="27" fill="url(#fundo)"/>
+
+  <!-- luz das 4 zonas escapando por baixo da placa -->
+  <g mask="url(#mGlow)" filter="url(#blur)">
+    <rect x="6"    y="85" width="29" height="31" fill="#ff2d6f"/>
+    <rect x="35"   y="85" width="29" height="31" fill="#b14aed"/>
+    <rect x="64"   y="85" width="29" height="31" fill="#4f7cff"/>
+    <rect x="93"   y="85" width="29" height="31" fill="#2de2ff"/>
+  </g>
+
+  <rect x="17" y="34" width="94" height="54" rx="10" fill="url(#placa)"/>
+
+  <g>
+    <g fill="#ff2d6f">
+      <rect x="22.0" y="42" width="8.0" height="8" rx="2"/>
+      <rect x="22.0" y="54" width="8.0" height="8" rx="2"/>
+      <rect x="22.0" y="66" width="8.0" height="8" rx="2"/>
+      <rect x="32.8" y="42" width="8.0" height="8" rx="2"/>
+      <rect x="32.8" y="54" width="8.0" height="8" rx="2"/>
+      <rect x="32.8" y="66" width="8.0" height="8" rx="2"/>
+    </g>
+    <g fill="#b14aed">
+      <rect x="43.6" y="42" width="8.0" height="8" rx="2"/>
+      <rect x="43.6" y="54" width="8.0" height="8" rx="2"/>
+      <rect x="43.6" y="66" width="8.0" height="8" rx="2"/>
+      <rect x="54.4" y="42" width="8.0" height="8" rx="2"/>
+      <rect x="54.4" y="54" width="8.0" height="8" rx="2"/>
+      <rect x="54.4" y="66" width="8.0" height="8" rx="2"/>
+    </g>
+    <g fill="#4f7cff">
+      <rect x="65.2" y="42" width="8.0" height="8" rx="2"/>
+      <rect x="65.2" y="54" width="8.0" height="8" rx="2"/>
+      <rect x="65.2" y="66" width="8.0" height="8" rx="2"/>
+      <rect x="76.0" y="42" width="8.0" height="8" rx="2"/>
+      <rect x="76.0" y="54" width="8.0" height="8" rx="2"/>
+      <rect x="76.0" y="66" width="8.0" height="8" rx="2"/>
+    </g>
+    <g fill="#2de2ff">
+      <rect x="86.8" y="42" width="8.0" height="8" rx="2"/>
+      <rect x="86.8" y="54" width="8.0" height="8" rx="2"/>
+      <rect x="86.8" y="66" width="8.0" height="8" rx="2"/>
+      <rect x="97.6" y="42" width="8.0" height="8" rx="2"/>
+      <rect x="97.6" y="54" width="8.0" height="8" rx="2"/>
+      <rect x="97.6" y="66" width="8.0" height="8" rx="2"/>
+    </g>
+  </g>
+
+  <rect x="46" y="78" width="36" height="5" rx="2.5" fill="#9aa3bd" opacity="0.5"/>
+</svg>

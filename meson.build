@@ -123,4 +123,10 @@ install_data('data/@0@.desktop'.format(app_id),
 install_data('data/@0@.metainfo.xml'.format(app_id),
              install_dir: datadir / 'metainfo')
 
+icondir = datadir / 'icons' / 'hicolor'
+install_data('data/icons/scalable/@0@.svg'.format(app_id),
+             install_dir: icondir / 'scalable' / 'apps')
+install_data('data/icons/symbolic/@0@-symbolic.svg'.format(app_id),
+             install_dir: icondir / 'symbolic' / 'apps')
+
 meson.add_install_script('meson_post_install.py')

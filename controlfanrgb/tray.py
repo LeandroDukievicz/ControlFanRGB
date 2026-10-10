@@ -27,7 +27,7 @@ MENU_IFACE = "com.canonical.dbusmenu"
 WATCHER_NAME = "org.kde.StatusNotifierWatcher"
 SNI_PATH = "/StatusNotifierItem"
 MENU_PATH = "/MenuBar"
-ICON = "keyboard-brightness-symbolic"
+ICON = "io.github.leandrodukievicz.ControlFanRGB-symbolic"
 
 SNI_XML = f"""
 <node>
@@ -128,6 +128,11 @@ class Tray:
         self._idle = IdleWatcher(self._on_idle_change)
         self._idle_armed = False
 
+        # Último status conhecido. Os getters de propriedade do D-Bus
+        # respondem DAQUI e nunca fazem I/O — ver _sni_get.
+        self._status = {}
+        self._tooltip_text = "ControlFanRGB"
+
     # --------------------------------------------------------- modelo ------
     def _build_menu(self):
         next_id = iter(range(1, 500))
@@ -217,8 +222,21 @@ class Tray:
         for sig in (signal.SIGINT, signal.SIGTERM):
             GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, self._quit)
         GLib.timeout_add_seconds(2, self._refresh)
-        GLib.idle_add(self._refresh)          # não espera os 2 s do primeiro poll
+        GLib.idle_add(self._refresh_once)     # não espera os 2 s do primeiro poll
         self.loop.run()
+
+    def _refresh_once(self):
+        """Primeira atualização, fora do ritmo do timer.
+
+        Precisa de um invólucro: `_refresh` devolve True para manter vivo o
+        timeout de 2 s, e uma fonte *idle* que devolve True é reagendada
+        imediatamente. Passar `_refresh` direto para `idle_add` transformava a
+        atualização num laço ocupado — medido em 632 chamadas de GetStatus por
+        segundo, com o daemon relendo sysfs em cada uma (70% de CPU) e o tray
+        girando a 26%.
+        """
+        self._refresh()
+        return GLib.SOURCE_REMOVE
 
     def _on_bus_acquired(self, conn, _name):
         self._conn = conn
@@ -243,23 +261,44 @@ class Tray:
         _log("perdi o nome no barramento")
         self._quit()
 
+    # Propriedades constantes: montadas uma vez, não a cada consulta.
+    _SNI_CONST = {
+        "Category": GLib.Variant("s", "Hardware"),
+        "Id": GLib.Variant("s", "controlfanrgb"),
+        "Title": GLib.Variant("s", "ControlFanRGB"),
+        "Status": GLib.Variant("s", "Active"),
+        "WindowId": GLib.Variant("i", 0),
+        "IconName": GLib.Variant("s", ICON),
+        "IconThemePath": GLib.Variant("s", ""),
+        "OverlayIconName": GLib.Variant("s", ""),
+        "AttentionIconName": GLib.Variant("s", ""),
+        "ItemIsMenu": GLib.Variant("b", True),
+        "Menu": GLib.Variant("o", MENU_PATH),
+    }
+
     def _sni_get(self, _c, _s, _p, _i, prop):
-        values = {
-            "Category": GLib.Variant("s", "Hardware"),
-            "Id": GLib.Variant("s", "controlfanrgb"),
-            "Title": GLib.Variant("s", "ControlFanRGB"),
-            "Status": GLib.Variant("s", "Active"),
-            "WindowId": GLib.Variant("i", 0),
-            "IconName": GLib.Variant("s", ICON),
-            "IconThemePath": GLib.Variant("s", ""),
-            "OverlayIconName": GLib.Variant("s", ""),
-            "AttentionIconName": GLib.Variant("s", ""),
-            "ItemIsMenu": GLib.Variant("b", True),
-            "Menu": GLib.Variant("o", MENU_PATH),
-            "ToolTip": GLib.Variant("(sa(iiay)ss)",
-                                    (ICON, [], "ControlFanRGB", self._tooltip())),
-        }
-        return values.get(prop)
+        """Responde da memória. **Nunca** faz I/O nem chamada D-Bus.
+
+        O host do tray lê propriedades com muita frequência, e várias por
+        atualização. A versão anterior montava o dicionário inteiro a cada
+        consulta e, ao montar a entrada ToolTip, chamava backend.status() —
+        uma chamada D-Bus *síncrona* ao daemon — mesmo quando o host havia
+        pedido só "Category".
+
+        Medido antes da correção: 690 GetStatus por segundo, daemon em 71% de
+        CPU e ~1.900 openat/s em sysfs, porque cada GetStatus relê ventoinhas,
+        temperatura e turbo. Pior, _refresh emitia NewToolTip a cada 2 s, o
+        que fazia o host reler as propriedades e realimentar o ciclo.
+
+        O tooltip agora vem de _tooltip_text, atualizado pelo _refresh.
+        """
+        const = self._SNI_CONST.get(prop)
+        if const is not None:
+            return const
+        if prop == "ToolTip":
+            return GLib.Variant("(sa(iiay)ss)",
+                                (ICON, [], "ControlFanRGB", self._tooltip_text))
+        return None
 
     def _menu_get(self, _c, _s, _p, _i, prop):
         return {
@@ -344,10 +383,10 @@ class Tray:
             _log(f"falhou: {e}")
 
     # --------------------------------------------------------- refresh -----
-    def _tooltip(self):
-        try:
-            st = self.backend.status()
-        except Exception:                            # noqa: BLE001
+    @staticmethod
+    def _tooltip_from(st):
+        """Texto do tooltip a partir de um status já em mãos — não consulta nada."""
+        if not st:
             return "daemon indisponível"
         turbo = "turbo ligado" if st.get("turbo") else "turbo desligado"
         if st.get("fan_cpu"):
@@ -355,11 +394,19 @@ class Tray:
         return turbo
 
     def _refresh(self):
+        """Única fonte de I/O periódico do tray.
+
+        Consulta o daemon uma vez e guarda o resultado em `self._status`.
+        Todos os getters de propriedade leem desse snapshot, nunca do
+        barramento — é isso que mantém o GetStatus em ~0,5/s em vez de 690/s.
+        """
         try:
             st = self.backend.status()
         except Exception:                            # noqa: BLE001
+            self._status = {}
             return True
 
+        self._status = st
         changed = []
         turbo = 1 if st.get("turbo") else 0
         if self.item_turbo.get("toggle-state") != turbo:
@@ -375,31 +422,56 @@ class Tray:
         self._sync_audio(st)
         self._sync_idle(st)
 
-        if changed and self._conn is not None:
-            self._conn.emit_signal(
-                None, MENU_PATH, MENU_IFACE, "ItemsPropertiesUpdated",
-                GLib.Variant("(a(ia{sv})a(ias))",
-                             ([(i["id"], self._props(i)) for i in changed], [])))
-            self._conn.emit_signal(None, SNI_PATH, SNI_IFACE, "NewToolTip", None)
+        if self._conn is not None:
+            if changed:
+                self._conn.emit_signal(
+                    None, MENU_PATH, MENU_IFACE, "ItemsPropertiesUpdated",
+                    GLib.Variant("(a(ia{sv})a(ias))",
+                                 ([(i["id"], self._props(i)) for i in changed], [])))
+            # NewToolTip só quando o texto muda de fato. Emitir sempre fazia o
+            # host reler as propriedades a cada 2 s sem motivo.
+            texto = self._tooltip_from(st)
+            if texto != self._tooltip_text:
+                self._tooltip_text = texto
+                self._conn.emit_signal(None, SNI_PATH, SNI_IFACE,
+                                       "NewToolTip", None)
         return True
 
     # ------------------------------------------------------------- áudio ----
+    def _stop_audio_timer(self):
+        if self._audio_timer is not None:
+            GLib.source_remove(self._audio_timer)
+            self._audio_timer = None
+
     def _sync_audio(self, st):
-        """Liga o amostrador só enquanto o efeito de música estiver ativo."""
+        """Liga o amostrador só enquanto o efeito de música estiver ativo.
+
+        Trata os quatro estados, e não só os dois óbvios. O `pw-record` pode
+        morrer sozinho (PipeWire reiniciado, por exemplo): aí a thread termina
+        mas o timer de envio continua vivo. A versão anterior, ao religar,
+        somava um segundo timer sem remover o primeiro; e se o usuário
+        trocasse de efeito depois de uma queda, o ramo de limpeza nem rodava,
+        porque testava `running`, que já era falso. O timer órfão não
+        duplicava o tráfego D-Bus — `_push_audio` consome o dado e os extras
+        encontram None — mas acordava a cada 45 ms para nada.
+        """
         quer = st.get("effect") == effects.Music.nome
-        if quer and not self._sampler.running:
+
+        if not quer:
+            if self._sampler.running or self._audio_timer is not None:
+                self._sampler.stop()
+                self._stop_audio_timer()
+                self._audio = None
+                _log("amostragem de áudio encerrada")
+            return
+
+        if not self._sampler.running:
+            self._stop_audio_timer()        # pode ter sobrado de uma queda
             if self._sampler.start():
                 self._audio_timer = GLib.timeout_add(45, self._push_audio)
                 _log("amostrando o áudio da sessão")
             else:
                 _log(f"sem áudio: {self._sampler.last_error}")
-        elif not quer and self._sampler.running:
-            self._sampler.stop()
-            if self._audio_timer:
-                GLib.source_remove(self._audio_timer)
-                self._audio_timer = None
-            self._audio = None
-            _log("amostragem de áudio encerrada")
 
     def _on_audio(self, level, bands):
         """Chamado da thread do amostrador — só guarda o valor.
@@ -446,6 +518,7 @@ class Tray:
 
     def _quit(self, *_a):
         self._sampler.stop()
+        self._stop_audio_timer()
         self._idle.stop()
         self.loop.quit()
         return GLib.SOURCE_REMOVE

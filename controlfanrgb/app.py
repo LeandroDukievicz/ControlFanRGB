@@ -41,7 +41,7 @@ class ControlFanRGB(Adw.Application):
 NOTIFY_ID = 7311          # fixo: cada toque substitui a notificação anterior
 
 
-def _notify(title, body, icon="keyboard-brightness-symbolic"):
+def _notify(title, body, icon="io.github.leandrodukievicz.ControlFanRGB-symbolic"):
     """Notificação do sistema.
 
     É o caminho possível no GNOME: o Mutter não implementa `wlr-layer-shell`,
