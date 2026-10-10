@@ -60,15 +60,25 @@ class Keyboard:
     def open(self):
         if self._static is not None:
             return
+        static = None
         try:
-            self._static = os.open(STATIC_DEV, os.O_WRONLY)
-            self._dyn = os.open(DYN_DEV, os.O_WRONLY)
+            static = os.open(STATIC_DEV, os.O_WRONLY)
+            dynamic = os.open(DYN_DEV, os.O_WRONLY)
         except FileNotFoundError as e:
+            if static is not None:
+                os.close(static)
             raise KeyboardUnavailable(
                 "os devices do teclado não existem — rode: sudo modprobe facer") from e
         except PermissionError as e:
+            if static is not None:
+                os.close(static)
             raise KeyboardUnavailable(
                 f"sem permissão em {STATIC_DEV}") from e
+        except OSError:
+            if static is not None:
+                os.close(static)
+            raise
+        self._static, self._dyn = static, dynamic
 
     def close(self):
         for fd in (self._static, self._dyn):

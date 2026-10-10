@@ -62,6 +62,7 @@ class IdleWatcher:
         if self._proxy is not None and self._sub is not None:
             self._proxy.disconnect(self._sub)
         self._sub = None
+        self._proxy = None
         self.idle = False
 
     def set_timeout(self, seconds):

@@ -227,6 +227,40 @@ def test_engine_stop_sem_start_nao_quebra():
     assert motor.running is False
 
 
+def test_keyboard_fecha_primeiro_fd_se_segundo_falhar(monkeypatch):
+    from controlfanrgb import hardware
+
+    fechados = []
+    def abrir(path, flags):
+        if path == hardware.DYN_DEV:
+            raise FileNotFoundError(path)
+        return 42
+
+    monkeypatch.setattr(hardware.os, "open", abrir)
+    monkeypatch.setattr(hardware.os, "close", fechados.append)
+    kb = hardware.Keyboard()
+    with pytest.raises(hardware.KeyboardUnavailable):
+        kb.open()
+    assert fechados == [42]
+    assert kb._static is None and kb._dyn is None
+
+
+def test_idle_watcher_pode_reiniciar_depois_de_stop():
+    from controlfanrgb.idle import IdleWatcher
+
+    class Proxy:
+        def __init__(self): self.desconectados = []
+        def disconnect(self, sub): self.desconectados.append(sub)
+
+    watcher = IdleWatcher(lambda idle: None)
+    proxy = Proxy()
+    watcher._proxy = proxy
+    watcher._sub = 7
+    watcher.stop()
+    assert proxy.desconectados == [7]
+    assert watcher._proxy is None
+
+
 # --------------------------------------------- interruptor de energia ----
 def test_set_power_state_nao_dispara_o_proprio_handler():
     """O botão de power era de mão única: só apagava. Virou interruptor, e aí
