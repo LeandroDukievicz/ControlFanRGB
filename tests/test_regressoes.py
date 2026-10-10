@@ -7,6 +7,8 @@ hardware: o teclado, os sensores e o backend são dublês.
 import threading
 import time
 import types
+import subprocess
+import sys
 
 import pytest
 from gi.repository import GLib
@@ -161,6 +163,35 @@ def test_push_audio_nao_envia_sem_dado_novo():
     t._push_audio()
     assert len(enviados) == 1
     assert t._audio is None, "o dado deveria ser consumido"
+
+
+def test_sampler_para_thread_e_recolhe_subprocesso(monkeypatch):
+    from controlfanrgb.audio import Sampler
+
+    sampler = Sampler(lambda level, bands: None)
+    monkeypatch.setattr(sampler, "available", lambda: True)
+    script = ("import os,time\n"
+              "while True:\n"
+              " os.write(1, b'\\0' * 4096)\n"
+              " time.sleep(.02)\n")
+    criado = []
+    def spawn():
+        proc = subprocess.Popen([sys.executable, "-u", "-c", script],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL)
+        criado.append(proc)
+        return proc
+    monkeypatch.setattr(sampler, "_spawn", spawn)
+    assert sampler.start()
+    deadline = time.monotonic() + 2
+    while sampler._proc is None and time.monotonic() < deadline:
+        time.sleep(.01)
+    assert sampler._proc is not None
+    sampler.stop()
+    assert not sampler.running
+    assert sampler._proc is None
+    assert criado[0].returncode is not None
+    assert criado[0].stdout.closed
 
 
 # ------------------------------------------- envio de áudio sem resposta --

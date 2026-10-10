@@ -78,6 +78,7 @@ class Sampler:
         self._rate = rate
         self._chunk = chunk
         self._stop = threading.Event()
+        self._proc_lock = threading.Lock()
         self._thread = None
         self._proc = None
         self.last_error = None
@@ -99,7 +100,7 @@ class Sampler:
 
     def start(self):
         if self.running:
-            return True
+            return not self._stop.is_set()
         if not self.available():
             self.last_error = ("numpy ausente" if np is None
                                else "pw-record não encontrado (pipewire-bin)")
@@ -111,16 +112,18 @@ class Sampler:
 
     def stop(self):
         self._stop.set()
-        proc, self._proc = self._proc, None
+        with self._proc_lock:
+            proc = self._proc
         if proc is not None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+            if proc.poll() is None:
+                proc.terminate()
         if self._thread is not None:
             self._thread.join(timeout=2)
-            self._thread = None
+            if self._thread.is_alive() and proc is not None and proc.poll() is None:
+                proc.kill()
+                self._thread.join(timeout=2)
+            if not self._thread.is_alive():
+                self._thread = None
 
     # ---------------------------------------------------------------------
     def _spawn(self):
@@ -141,10 +144,29 @@ class Sampler:
 
     def _loop(self):
         try:
-            self._proc = self._spawn()
+            proc = self._spawn()
         except OSError as e:
             self.last_error = str(e)
             return
+
+        with self._proc_lock:
+            self._proc = proc
+
+        try:
+            self._sample(proc)
+        finally:
+            if proc.stdout is not None:
+                proc.stdout.close()
+            try:
+                proc.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+            with self._proc_lock:
+                if self._proc is proc:
+                    self._proc = None
+
+    def _sample(self, proc):
 
         window = np.hanning(self._chunk).astype(np.float32)
         freqs = np.fft.rfftfreq(self._chunk, 1.0 / self._rate)
@@ -159,7 +181,7 @@ class Sampler:
         total_peak = 1e-3
 
         while not self._stop.is_set():
-            raw = self._read_exact(self._proc.stdout, self._chunk * 2)
+            raw = self._read_exact(proc.stdout, self._chunk * 2)
             if raw is None:
                 break
 
