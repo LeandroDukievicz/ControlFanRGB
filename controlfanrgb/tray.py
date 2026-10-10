@@ -27,7 +27,12 @@ MENU_IFACE = "com.canonical.dbusmenu"
 WATCHER_NAME = "org.kde.StatusNotifierWatcher"
 SNI_PATH = "/StatusNotifierItem"
 MENU_PATH = "/MenuBar"
-ICON = "io.github.leandrodukievicz.ControlFanRGB-symbolic"
+# Ícone colorido, não a variante simbólica. A convenção do GNOME pede
+# simbólico na bandeja, mas aí o ícone fica monocromático e indistinguível do
+# genérico de teclado que havia antes. Num app cujo assunto é justamente cor,
+# a convenção atrapalha. O simbólico continua instalado para quem usa tema que
+# force monocromia.
+ICON = "io.github.leandrodukievicz.ControlFanRGB"
 
 SNI_XML = f"""
 <node>

@@ -129,4 +129,12 @@ install_data('data/icons/scalable/@0@.svg'.format(app_id),
 install_data('data/icons/symbolic/@0@-symbolic.svg'.format(app_id),
              install_dir: icondir / 'symbolic' / 'apps')
 
+# Variante simplificada para tamanhos pequenos. O ícone grande tem oito
+# colunas de teclas que a 24 px viram uma mancha; esta tem quatro blocos, um
+# por zona. O GTK prefere o diretório de tamanho fixo quando ele existe.
+foreach tamanho : ['16x16', '22x22', '24x24', '32x32']
+  install_data('data/icons/small/@0@.svg'.format(app_id),
+               install_dir: icondir / tamanho / 'apps')
+endforeach
+
 meson.add_install_script('meson_post_install.py')
