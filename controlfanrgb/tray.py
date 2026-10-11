@@ -120,6 +120,7 @@ class Tray:
         self.backend = get_backend()
         self.loop = GLib.MainLoop()
         self._conn = None
+        self._watcher_id = None
         self._revision = 1
         self._items = {}
         self._root = self._build_menu()
@@ -258,6 +259,13 @@ class Tray:
             SNI_PATH, sni, self._sni_call, self._sni_get, None)
         conn.register_object_with_closures2(
             MENU_PATH, menu, self._menu_call, self._menu_get, None)
+        # O serviço do usuário pode iniciar antes da extensão do GNOME que
+        # fornece o watcher. Observe também reinícios da extensão/shell.
+        self._watcher_id = Gio.bus_watch_name_on_connection(
+            conn, WATCHER_NAME, Gio.BusNameWatcherFlags.NONE,
+            self._on_watcher_appeared, None)
+
+    def _on_watcher_appeared(self, conn, _name, _owner):
         conn.call(WATCHER_NAME, "/StatusNotifierWatcher", WATCHER_NAME,
                   "RegisterStatusNotifierItem",
                   GLib.Variant("(s)", (self._bus_name,)), None,
@@ -530,6 +538,9 @@ class Tray:
             _log(f"não consegui avisar o daemon da inatividade: {e!r}")
 
     def _quit(self, *_a):
+        if self._watcher_id is not None:
+            Gio.bus_unwatch_name(self._watcher_id)
+            self._watcher_id = None
         self._sampler.stop()
         self._stop_audio_timer()
         self._idle.stop()

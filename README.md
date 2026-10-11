@@ -1,5 +1,9 @@
 # ControlFanRGB
 
+<p align="center">
+  <img src="data/icons/512x512/io.github.leandrodukievicz.ControlFanRGB.png" alt="Ícone do ControlFanRGB: teclado RGB e ventoinha em neon azul e magenta" width="220">
+</p>
+
 Controle de teclado RGB e refrigeração para notebooks **Acer Predator** no Linux.
 GTK4 + libadwaita.
 

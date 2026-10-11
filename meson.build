@@ -125,17 +125,10 @@ install_data('data/@0@.metainfo.xml'.format(app_id),
              install_dir: datadir / 'metainfo')
 
 icondir = datadir / 'icons' / 'hicolor'
-install_data('data/icons/scalable/@0@.svg'.format(app_id),
-             install_dir: icondir / 'scalable' / 'apps')
-install_data('data/icons/symbolic/@0@-symbolic.svg'.format(app_id),
-             install_dir: icondir / 'symbolic' / 'apps')
-
-# Variante simplificada para tamanhos pequenos. O ícone grande tem oito
-# colunas de teclas que a 24 px viram uma mancha; esta tem quatro blocos, um
-# por zona. O GTK prefere o diretório de tamanho fixo quando ele existe.
-foreach tamanho : ['16x16', '22x22', '24x24', '32x32']
-  install_data('data/icons/small/@0@.svg'.format(app_id),
-               install_dir: icondir / tamanho / 'apps')
+foreach tamanho : ['16', '22', '24', '32', '48', '64', '128', '256', '512']
+  tamanho_dir = '@0@x@0@'.format(tamanho)
+  install_data('data/icons/@0@/@1@.png'.format(tamanho_dir, app_id),
+               install_dir: icondir / tamanho_dir / 'apps')
 endforeach
 
 meson.add_install_script('meson_post_install.py')
