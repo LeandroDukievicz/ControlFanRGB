@@ -8,7 +8,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import build_info, themes
+from . import build_info, themes, validation
 from .client import get_backend
 
 APP_ID = "io.github.leandrodukievicz.ControlFanRGB"
@@ -83,11 +83,24 @@ def _turbo_cli(backend, action):
                 f"CPU {st['fan_cpu']} rpm · GPU {st['fan_gpu']} rpm")
 
 
+def _turbo_for_cli(backend, seconds):
+    if backend.kind != "daemon":
+        # Sem daemon o timer viveria neste processo, que sai já em seguida:
+        # o turbo ficaria ligado para sempre.
+        sys.exit("erro: o timer do turbo precisa do daemon controlfanrgbd")
+    backend.set_turbo_timer(seconds)
+    quando = validation.format_remaining(seconds)
+    print(f"turbo ligado por {quando}")
+    _notify("Turbo ligado", f"desliga sozinho em {quando}")
+
+
 def _cli(args):
     """Modo sem janela, para o atalho global do GNOME chamar."""
     backend = get_backend()
     try:
-        if args.turbo:
+        if args.turbo_for is not None:
+            _turbo_for_cli(backend, args.turbo_for)
+        elif args.turbo:
             _turbo_cli(backend, args.turbo)
         elif args.off:
             backend.off()
@@ -105,7 +118,10 @@ def _cli(args):
             print(f"modo        : {st['mode']}"
                   + (f" ({st['effect']})" if st.get("effect") else ""))
             print(f"brilho      : {st['brightness']}%")
+            resta = st.get("turbo_remaining") or 0
             print(f"turbo       : {'ligado' if st['turbo'] else 'desligado'}"
+                  + (f" (desliga em {validation.format_remaining(resta)})"
+                     if resta else "")
                   + ("" if st.get("turbo_available") else "  (indisponível)"))
             print(f"ventoinhas  : CPU {st['fan_cpu']} rpm · GPU {st['fan_gpu']} rpm")
             print(f"temp. CPU   : {st['cpu_temp']:.0f} °C")
@@ -116,6 +132,13 @@ def _cli(args):
         sys.exit(f"erro: {e}")
     finally:
         backend.close()
+
+
+def _duration_arg(text):
+    try:
+        return validation.duration(text)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e)) from e
 
 
 def main():
@@ -131,11 +154,15 @@ def main():
     p.add_argument("--off", action="store_true", help="apaga o teclado e sai")
     p.add_argument("--turbo", choices=("on", "off", "toggle"),
                    help="liga, desliga ou alterna o modo turbo e sai")
+    p.add_argument("--turbo-for", metavar="DURAÇÃO", type=_duration_arg,
+                   help="liga o turbo e desliga sozinho depois "
+                        "(15 = minutos; também 90s, 15m, 1h30m)")
     p.add_argument("--theme", metavar="NOME",
                    help=f"aplica um tema e sai ({', '.join(themes.THEMES)})")
     args = p.parse_args()
 
-    if args.apply or args.off or args.theme or args.turbo or args.status:
+    if (args.apply or args.off or args.theme or args.turbo or args.status
+            or args.turbo_for is not None):
         _cli(args)
         return 0
     return ControlFanRGB().run([])

@@ -14,9 +14,11 @@ Por que existe:
 Fala no barramento de sistema em `io.github.leandrodukievicz.ControlFanRGB1`.
 """
 import json
+import math
 import os
 import signal
 import sys
+import time
 
 import gi
 
@@ -32,6 +34,7 @@ STATE_DIR = "/var/lib/controlfanrgb"
 STATE_PATH = os.path.join(STATE_DIR, "state.json")
 POLL_SECONDS = 2
 MAX_APPLY_RETRIES = 30      # ~15 s esperando o módulo criar os /dev
+TURBO_TIMER_MAX = 12 * 3600  # 12 h: mais que isso é esquecimento, não timer
 
 DEFAULT_STATE = {
     "mode": "zones",                  # zones | firmware | software
@@ -84,6 +87,9 @@ INTROSPECTION = """
     <method name="ToggleTurbo">
       <arg type="b" name="state" direction="out"/>
     </method>
+    <method name="SetTurboTimer">
+      <arg type="u" name="seconds" direction="in"/>
+    </method>
     <method name="SetIdleBlank">
       <arg type="b" name="enabled" direction="in"/>
       <arg type="u" name="timeout" direction="in"/>
@@ -126,6 +132,8 @@ class Daemon:
         self._effects = {cls().nome: cls for cls in effects.SOFTWARE_EFFECTS}
         self._last_fans = None
         self._last_turbo = None
+        self._turbo_timer = 0          # fonte GLib que desliga o turbo
+        self._turbo_deadline = 0.0     # time.monotonic() em que desliga
         self._idle_active = False      # apagado por inatividade agora mesmo
         self._powered = True           # Off é temporário; o perfil fica salvo
         self._conn = None
@@ -263,13 +271,21 @@ class Daemon:
             self._apply_state()
 
         elif method == "SetTurbo":
+            # Ligar ou desligar na mão vence qualquer timer pendente: quem
+            # liga sem timer quer o turbo até desligar.
+            self._cancel_turbo_timer()
             Turbo.set(bool(args[0]))
             self._poll_turbo(force=True)
 
         elif method == "ToggleTurbo":
+            self._cancel_turbo_timer()
             new = Turbo.toggle()
             self._poll_turbo(force=True)
             return GLib.Variant("(b)", (new,))
+
+        elif method == "SetTurboTimer":
+            seconds = validation.integer(args[0], 0, TURBO_TIMER_MAX)
+            self._set_turbo_timer(seconds)
 
         elif method == "SetIdleBlank":
             enabled = bool(args[0])
@@ -299,6 +315,49 @@ class Daemon:
         else:
             raise ValueError(f"método desconhecido: {method}")
         return None
+
+    # ------------------------------------------------------ timer do turbo ---
+    def _set_turbo_timer(self, seconds):
+        """Liga o turbo por `seconds` e desliga sozinho depois.
+
+        Zero cancela só o timer: o turbo continua como está. O timer mora no
+        daemon, e não na janela, para sobreviver a ela fechada.
+
+        O relógio é o monotônico do GLib, que para durante o suspend — o
+        tempo conta só enquanto a máquina está acordada, que é quando as
+        ventoinhas giram.
+        """
+        self._cancel_turbo_timer()
+        if seconds == 0:
+            return
+        Turbo.set(True)               # falhou? sobe a exceção, sem timer
+        self._turbo_deadline = time.monotonic() + seconds
+        self._turbo_timer = GLib.timeout_add_seconds(seconds,
+                                                     self._on_turbo_timer)
+        self._poll_turbo(force=True)
+        _log(f"turbo ligado por {seconds} s")
+
+    def _cancel_turbo_timer(self):
+        if self._turbo_timer:
+            GLib.source_remove(self._turbo_timer)
+        self._turbo_timer = 0
+        self._turbo_deadline = 0.0
+
+    def _turbo_remaining(self):
+        if not self._turbo_timer:
+            return 0
+        return max(0, math.ceil(self._turbo_deadline - time.monotonic()))
+
+    def _on_turbo_timer(self):
+        self._turbo_timer = 0
+        self._turbo_deadline = 0.0
+        try:
+            Turbo.set(False)
+            _log("timer do turbo acabou — turbo desligado")
+        except KeyboardUnavailable as e:
+            _log(f"timer do turbo acabou, mas não consegui desligar: {e}")
+        self._poll_turbo(force=True)
+        return GLib.SOURCE_REMOVE
 
     def _try_firmware_timeout(self):
         self._firmware_tries += 1
@@ -449,6 +508,7 @@ class Daemon:
                                   [tuple(c) for c in self.state["zones"]]),
             "turbo": GLib.Variant("b", bool(turbo)),
             "turbo_available": GLib.Variant("b", Turbo.available()),
+            "turbo_remaining": GLib.Variant("u", self._turbo_remaining()),
             "fan_cpu": GLib.Variant("u", fans[0]),
             "fan_gpu": GLib.Variant("u", fans[1]),
             "cpu_temp": GLib.Variant("d", temp),
@@ -482,6 +542,11 @@ class Daemon:
 
     def _poll_turbo(self, force=False):
         turbo = Turbo.get()
+        if turbo is False and self._last_turbo and self._turbo_timer:
+            # Desligado por fora (tecla física do chassi): o timer perdeu o
+            # sentido. Só numa transição ligado → desligado observada, para
+            # uma leitura atrasada logo após ligar não matar o timer.
+            self._cancel_turbo_timer()
         if turbo is not None and (force or turbo != self._last_turbo):
             self._last_turbo = turbo
             self._emit("TurboChanged", GLib.Variant("(b)", (turbo,)))
@@ -496,6 +561,14 @@ class Daemon:
         if self._save_timer:
             GLib.source_remove(self._save_timer)
             self._flush_state()
+        if self._turbo_timer:
+            # Ninguém mais vai desligar o turbo depois: melhor desligar agora
+            # do que deixar as ventoinhas no máximo até o próximo boot.
+            self._cancel_turbo_timer()
+            try:
+                Turbo.set(False)
+            except KeyboardUnavailable as e:
+                _log(f"não consegui desligar o turbo ao sair: {e}")
         self.engine.stop()
         self.kb.close()
         self.loop.quit()

@@ -9,7 +9,10 @@ Dois, com a mesma API:
 `get_backend()` escolhe sozinho. Assim a janela não sabe (nem precisa saber)
 se existe um daemon rodando.
 """
+import math
 import os
+import time
+
 import gi
 
 from gi.repository import Gio, GLib  # noqa: E402
@@ -118,6 +121,10 @@ class DaemonBackend:
     def toggle_turbo(self):
         return self._call("ToggleTurbo").unpack()[0]
 
+    def set_turbo_timer(self, seconds):
+        """Liga o turbo e o daemon desliga depois de `seconds`; 0 cancela."""
+        self._call("SetTurboTimer", GLib.Variant("(u)", (int(seconds),)))
+
     def close(self):
         pass
 
@@ -142,6 +149,8 @@ class LocalBackend:
         self._idle_active = False
         self._powered = True
         self._firmware_timeout = False
+        self._turbo_timer = 0
+        self._turbo_deadline = 0.0
 
     def status(self):
         fans = self.sensors.fans() or (0, 0)
@@ -157,6 +166,7 @@ class LocalBackend:
             "zones": self._zones,
             "turbo": bool(Turbo.get()),
             "turbo_available": Turbo.available() and Turbo.writable(),
+            "turbo_remaining": self._turbo_remaining(),
             "fan_cpu": fans[0],
             "fan_gpu": fans[1],
             "cpu_temp": self.sensors.cpu_temp() or 0.0,
@@ -257,12 +267,57 @@ class LocalBackend:
         effects.AUDIO.push(level, bands)
 
     def set_turbo(self, on):
+        self._cancel_turbo_timer()
         Turbo.set(on)
 
     def toggle_turbo(self):
+        self._cancel_turbo_timer()
         return Turbo.toggle()
 
+    def set_turbo_timer(self, seconds):
+        """Igual ao do daemon, mas o timer vive na loop deste processo.
+
+        Serve à janela rodando sem daemon; num CLI, que sai logo em seguida,
+        o desligamento nunca aconteceria — por isso o CLI recusa.
+        """
+        self._cancel_turbo_timer()
+        if not seconds:
+            return
+        Turbo.set(True)
+        self._turbo_deadline = time.monotonic() + seconds
+        self._turbo_timer = GLib.timeout_add_seconds(int(seconds),
+                                                     self._on_turbo_timer)
+
+    def _cancel_turbo_timer(self):
+        if self._turbo_timer:
+            GLib.source_remove(self._turbo_timer)
+        self._turbo_timer = 0
+        self._turbo_deadline = 0.0
+
+    def _turbo_remaining(self):
+        if not self._turbo_timer:
+            return 0
+        if Turbo.get() is False:              # tecla física desligou
+            self._cancel_turbo_timer()
+            return 0
+        return max(0, math.ceil(self._turbo_deadline - time.monotonic()))
+
+    def _on_turbo_timer(self):
+        self._turbo_timer = 0
+        self._turbo_deadline = 0.0
+        try:
+            Turbo.set(False)
+        except KeyboardUnavailable:
+            pass
+        return GLib.SOURCE_REMOVE
+
     def close(self):
+        if self._turbo_timer:
+            self._cancel_turbo_timer()
+            try:
+                Turbo.set(False)
+            except KeyboardUnavailable:
+                pass
         self.engine.stop()
         self.kb.close()
 

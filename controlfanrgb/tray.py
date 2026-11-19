@@ -33,6 +33,9 @@ MENU_PATH = "/MenuBar"
 # a convenção atrapalha. O simbólico continua instalado para quem usa tema que
 # force monocromia.
 ICON = "io.github.leandrodukievicz.ControlFanRGB"
+# Atalhos do submenu "Turbo por…": (rótulo, segundos)
+TURBO_TIMERS = (("15 minutos", 15 * 60), ("30 minutos", 30 * 60),
+                ("1 hora", 3600), ("2 horas", 2 * 3600))
 
 SNI_XML = f"""
 <node>
@@ -156,6 +159,12 @@ class Tray:
         self.item_turbo = node("Turbo", action="turbo",
                                **{"toggle-type": "checkmark", "toggle-state": 0})
         add(self.item_turbo)
+
+        turbo_por = node("Turbo por…", **{"children-display": "submenu"})
+        for rotulo, segundos in TURBO_TIMERS:
+            turbo_por["children"].append(
+                node(rotulo, action="turbo_for", arg=segundos))
+        add(turbo_por)
 
         self.item_fans = node("Ventoinhas: —", enabled=False)
         add(self.item_fans)
@@ -376,6 +385,8 @@ class Tray:
         action, arg = item.get("action"), item.get("arg")
         if action == "turbo":
             self._safe(lambda: self.backend.toggle_turbo())
+        elif action == "turbo_for":
+            self._safe(lambda: self.backend.set_turbo_timer(arg))
         elif action == "theme":
             self._safe(lambda: self.backend.apply_theme(arg))
         elif action == "effect":
@@ -410,9 +421,23 @@ class Tray:
         if not st:
             return "daemon indisponível"
         turbo = "turbo ligado" if st.get("turbo") else "turbo desligado"
+        if st.get("turbo") and st.get("turbo_remaining"):
+            turbo += f" (desliga em {Tray._minutes(st['turbo_remaining'])})"
         if st.get("fan_cpu"):
             return f"{turbo} · CPU {st['fan_cpu']} rpm · GPU {st['fan_gpu']} rpm"
         return turbo
+
+    @staticmethod
+    def _minutes(seconds):
+        """Arredonda para cima, em minutos: o rótulo muda uma vez por minuto
+        e não a cada refresh de 2 s, o que reemitiria o menu à toa."""
+        return f"{max(1, -(-int(seconds) // 60))} min"
+
+    @staticmethod
+    def _turbo_label(st):
+        if st.get("turbo") and st.get("turbo_remaining"):
+            return f"Turbo (desliga em {Tray._minutes(st['turbo_remaining'])})"
+        return "Turbo"
 
     def _refresh(self):
         """Única fonte de I/O periódico do tray.
@@ -433,6 +458,11 @@ class Tray:
         if self.item_turbo.get("toggle-state") != turbo:
             self.item_turbo["toggle-state"] = turbo
             changed.append(self.item_turbo)
+        label = self._turbo_label(st)
+        if self.item_turbo.get("label") != label:
+            self.item_turbo["label"] = label
+            if self.item_turbo not in changed:
+                changed.append(self.item_turbo)
 
         label = (f"Ventoinhas: {st['fan_cpu']} / {st['fan_gpu']} rpm"
                  if st.get("fan_cpu") else "Ventoinhas: indisponível")

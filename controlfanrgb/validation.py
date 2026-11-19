@@ -1,5 +1,8 @@
 """Validação dos valores persistidos e dos argumentos recebidos pelo daemon."""
 import math
+import re
+
+_DURATION = re.compile(r"(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?")
 
 
 def integer(value, low, high):
@@ -18,6 +21,33 @@ def zones(value):
     if not isinstance(value, (list, tuple)) or len(value) != 4:
         raise ValueError("são necessárias exatamente quatro zonas")
     return [color(c) for c in value]
+
+
+def duration(text):
+    """Converte "15", "90s", "15m", "1h" ou "1h30m" em segundos.
+
+    Número puro conta como minutos — é o que se digita num atalho de teclado.
+    """
+    text = str(text).strip().lower().replace(" ", "")
+    if text.isdigit():
+        seconds = int(text) * 60
+    else:
+        m = _DURATION.fullmatch(text)
+        if not text or not m:
+            raise ValueError(f"duração inválida: {text!r} (ex.: 15, 90s, 15m, 1h30m)")
+        h, mi, s = (int(g or 0) for g in m.groups())
+        seconds = h * 3600 + mi * 60 + s
+    if seconds <= 0:
+        raise ValueError("a duração precisa ser maior que zero")
+    return seconds
+
+
+def format_remaining(seconds):
+    """12:05 para minutos e segundos; 1:02:05 quando passa de uma hora."""
+    seconds = max(0, int(seconds))
+    h, rest = divmod(seconds, 3600)
+    m, s = divmod(rest, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
 
 def audio(level, bands):

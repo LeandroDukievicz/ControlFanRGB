@@ -20,6 +20,7 @@ DEFAULT = {
     "software_effect": "Arco-íris",
     "key_colors": {},
     "apply_on_start": True,
+    "turbo_minutes": 0,              # timer do turbo na janela; 0 = sem timer
 }
 
 
@@ -37,6 +38,10 @@ def load():
         cfg["theme"] = raw["theme"]
     if isinstance(raw.get("apply_on_start"), bool):
         cfg["apply_on_start"] = raw["apply_on_start"]
+    try:
+        cfg["turbo_minutes"] = validation.integer(raw.get("turbo_minutes"), 0, 720)
+    except ValueError:
+        cfg["turbo_minutes"] = DEFAULT["turbo_minutes"]
     painted = raw.get("key_colors")
     cfg["key_colors"] = {}
     if isinstance(painted, dict):

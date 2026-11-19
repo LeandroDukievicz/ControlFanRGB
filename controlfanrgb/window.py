@@ -11,7 +11,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, GLib, Gdk, Gtk  # noqa: E402
 
-from . import config, effects, perkey, themes
+from . import config, effects, perkey, themes, validation
 from .client import get_backend
 from .hardware import (MODE_NAMES, MODES_WITH_COLOR, STATIC,
                        Keyboard, KeyboardUnavailable, Sensors)
@@ -54,6 +54,7 @@ class Window(Adw.ApplicationWindow):
         self._preview_t0 = 0.0
         self._preview_id = 0
         self._save_id = 0
+        self._turbo_timer_id = 0        # debounce do SpinRow do timer
 
         self.toasts = Adw.ToastOverlay()
         self.set_content(self.toasts)
@@ -440,6 +441,17 @@ class Window(Adw.ApplicationWindow):
         self.row_turbo.connect("notify::active", self._on_turbo)
         g2.add(self.row_turbo)
 
+        # 0 = sem timer. O valor fica salvo e vale para a próxima vez que o
+        # turbo for ligado por aqui; com o turbo já ligado, mudar o valor
+        # reprograma o desligamento a partir de agora.
+        self.turbo_minutes = Adw.SpinRow.new_with_range(0, 720, 5)
+        self.turbo_minutes.set_title("Desligar turbo após")
+        self.turbo_minutes.set_subtitle(
+            "minutos — 0 deixa ligado até você desligar")
+        self.turbo_minutes.set_value(self.cfg.get("turbo_minutes", 0))
+        self.turbo_minutes.connect("notify::value", self._on_turbo_minutes)
+        g2.add(self.turbo_minutes)
+
         st = self._initial_status
         if not st:
             try:
@@ -448,6 +460,7 @@ class Window(Adw.ApplicationWindow):
                 st = {}
         if not st.get("turbo_available", False):
             self.row_turbo.set_sensitive(False)
+            self.turbo_minutes.set_sensitive(False)
             self.row_turbo.set_subtitle(
                 "indisponível — precisa do módulo facer 1.1+ e da regra udev "
                 "(veja kernel/instalar.sh)")
@@ -575,16 +588,60 @@ class Window(Adw.ApplicationWindow):
         if self._applying:
             return
         want = row.get_active()
+        minutos = int(self.turbo_minutes.get_value())
         try:
-            self.backend.set_turbo(want)
+            if want and minutos:
+                self.backend.set_turbo_timer(minutos * 60)
+            else:
+                self.backend.set_turbo(want)
         except Exception as e:  # noqa: BLE001
             self._toast(str(e))
             self._applying = True
             row.set_active(not want)
             self._applying = False
             return
-        self._toast("Turbo ligado — ventoinhas no máximo"
-                    if want else "Turbo desligado")
+        if want and minutos:
+            self._toast(f"Turbo ligado por {minutos} min")
+        else:
+            self._toast("Turbo ligado — ventoinhas no máximo"
+                        if want else "Turbo desligado")
+        self._show_turbo_remaining(
+            minutos * 60 if want and minutos else 0)
+
+    def _on_turbo_minutes(self, row, _p):
+        if self._applying:
+            return
+        self.cfg["turbo_minutes"] = int(row.get_value())
+        if self._save_id:
+            GLib.source_remove(self._save_id)
+        self._save_id = GLib.timeout_add(350, self._save_config)
+        if not self.row_turbo.get_active():
+            return                     # só vale na próxima vez que ligar
+        # As setinhas do SpinRow disparam um notify por passo: espera parar
+        # de mexer antes de reprogramar o daemon.
+        if self._turbo_timer_id:
+            GLib.source_remove(self._turbo_timer_id)
+        self._turbo_timer_id = GLib.timeout_add(600, self._push_turbo_timer)
+
+    def _push_turbo_timer(self):
+        self._turbo_timer_id = 0
+        minutos = int(self.turbo_minutes.get_value())
+        try:
+            self.backend.set_turbo_timer(minutos * 60)
+        except Exception as e:  # noqa: BLE001
+            self._toast(str(e))
+            return GLib.SOURCE_REMOVE
+        self._toast(f"Turbo desliga em {minutos} min" if minutos
+                    else "Timer cancelado — turbo fica ligado")
+        self._show_turbo_remaining(minutos * 60)
+        return GLib.SOURCE_REMOVE
+
+    def _show_turbo_remaining(self, seconds):
+        if not self.row_turbo.get_sensitive():
+            return                     # subtítulo explica a indisponibilidade
+        self.row_turbo.set_subtitle(
+            f"Desliga sozinho em {validation.format_remaining(seconds)}"
+            if seconds else "Ventoinhas no máximo + overclock")
 
     def _start_preview(self, inst):
         """Redesenha o teclado da tela acompanhando o efeito.
@@ -761,6 +818,7 @@ class Window(Adw.ApplicationWindow):
             self._applying = True
             self.row_turbo.set_active(bool(st.get("turbo")))
             self._applying = False
+        self._show_turbo_remaining(st.get("turbo_remaining") or 0)
         self._set_power_state(not st.get("powered", True))
         return True
 
@@ -781,6 +839,9 @@ class Window(Adw.ApplicationWindow):
         if self._sensor_id:
             GLib.source_remove(self._sensor_id)
             self._sensor_id = 0
+        if self._turbo_timer_id:
+            GLib.source_remove(self._turbo_timer_id)
+            self._push_turbo_timer()
         self.backend.close()
         config.save(self.cfg)
         return False

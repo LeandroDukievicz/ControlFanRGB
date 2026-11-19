@@ -27,6 +27,10 @@ Tudo abaixo funciona e foi testado neste hardware (Predator PH315-54):
   depois de ~30 s sem tecla pressionada e ignorava as escritas de cor — era o
   motivo de o teclado "apagar sozinho" mesmo com um efeito rodando
 - **Modo turbo** ligar/desligar, pela interface e pelo CLI
+- **Timer do turbo**: liga por N minutos e desliga sozinho — na página de
+  resfriamento, no submenu *Turbo por…* do tray ou com `--turbo-for 15`.
+  O timer roda no daemon, então continua com a janela fechada; ligar ou
+  desligar na mão (ou pela tecla do chassi) cancela o timer
 - **RPM das duas ventoinhas** e temperatura da CPU, ao vivo
 
 Medido ao ligar o turbo: CPU **3061 → 5555 rpm**, GPU **3488 → 5769 rpm**.
@@ -190,7 +194,12 @@ python3 run.py --off             # apaga o teclado
 python3 run.py --theme Matrix    # aplica um tema
 python3 run.py --turbo toggle    # alterna o turbo
 python3 run.py --turbo on        # liga
+python3 run.py --turbo-for 15    # liga e desliga sozinho em 15 min
+python3 run.py --turbo-for 1h30m # também aceita 90s, 15m, 1h
 ```
+
+O `--turbo-for` precisa do daemon: sem ele, quem desligaria o turbo seria o
+próprio CLI, que sai na hora.
 
 Para ligar num atalho global do GNOME: Configurações → Teclado → Atalhos
 personalizados, com o comando acima.
